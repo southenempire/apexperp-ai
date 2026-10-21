@@ -10,7 +10,8 @@
     "preview": "vite preview",
     "agent:live": "tsx agent/runner.ts",
     "doctor": "tsx scripts/testnet-doctor.ts",
-    "testnet:ping": "tsx scripts/testnet-ping.ts"
+    "testnet:ping": "tsx scripts/testnet-ping.ts",
+    "stress-test": "tsx scripts/stress-test.ts"
   },
   "dependencies": {
     "lucide-react": "^0.460.0",
