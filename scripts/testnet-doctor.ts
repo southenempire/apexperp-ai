@@ -1,56 +1,87 @@
 /**
- * Somnia Tokyo Testnet (Hideki) Preflight & Health Check
- * Validates RPC latency, block height, and DreamDEX CLOB perp indexer state.
+ * Preflight for Somnia Tokyo testnet: checks every dependency ApexPerp needs and
+ * exits non-zero if any fails. With PRIVATE_KEY set it also checks your wallet.
+ *
+ *   npm run doctor
  */
 
-import { createPublicClient, http } from 'viem';
+import { erc20Abi, formatEther, formatUnits, type Address } from 'viem';
+import { privateKeyToAccount } from 'viem/accounts';
+import { SOMNIA_HIDEKI_TESTNET_ADDRESSES } from '@somnia-chain/markets-sdk';
+import { connect, loadPerps, MARGIN_BANK, publicClient } from '../agent/markets';
 
-const RPC_URL = 'https://api.hideki2.infra.testnet.somnia.network';
-const INDEXER_URL = 'https://hideki-dev.smk.somnia.host/v1/graphql';
-const CHAIN_ID = 50383;
+const results: { name: string; ok: boolean; detail: string }[] = [];
 
-async function checkSomniaTestnet() {
-  console.log('='.repeat(60));
-  console.log('  APEXPERP AI: SOMNIA TOKYO TESTNET PREFLIGHT CHECK');
-  console.log('='.repeat(60));
-
-  const client = createPublicClient({
-    transport: http(RPC_URL)
-  });
-
+async function check(name: string, fn: () => Promise<string>) {
   const t0 = Date.now();
   try {
-    const blockNumber = await client.getBlockNumber();
-    const latency = Date.now() - t0;
-    console.log(`\n[RPC] Connected to Somnia Tokyo Testnet`);
-    console.log(`  RPC Endpoint : ${RPC_URL}`);
-    console.log(`  Chain ID     : ${CHAIN_ID}`);
-    console.log(`  Block Height : #${blockNumber.toString()}`);
-    console.log(`  RPC Latency  : ${latency}ms`);
+    const detail = await fn();
+    results.push({ name, ok: true, detail: `${detail} (${Date.now() - t0}ms)` });
   } catch (err) {
-    console.error(`[RPC ERROR] Failed to connect:`, err);
+    results.push({ name, ok: false, detail: (err as Error).message.split('\n')[0] });
   }
-
-  // Check DreamDEX Indexer
-  try {
-    console.log(`\n[DREAMDEX] Querying GraphQL Indexer at ${INDEXER_URL}...`);
-    const res = await fetch(INDEXER_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        query: `query { markets(limit: 5) { id poolAddress baseDecimals quoteDecimals } }`
-      })
-    });
-    const data = await res.json();
-    console.log(`  Indexer Status : HTTP ${res.status}`);
-    console.log(`  Markets Live   : ${(data as any).data?.markets?.length ?? 'OK'} markets sampled`);
-  } catch (err) {
-    console.log(`  Indexer Query  : fallback active (SDK direct RPC mode)`);
-  }
-
-  console.log('\n' + '='.repeat(60));
-  console.log('  ALL CHECKS PASSED: READY FOR HIGH-SPEED PERP EXECUTION');
-  console.log('='.repeat(60) + '\n');
 }
 
-checkSomniaTestnet();
+async function main() {
+  const key = process.env.PRIVATE_KEY as `0x${string}` | undefined;
+  const exchange = connect({
+    indexerUrl: process.env.INDEXER_URL || 'https://hideki-dev.smk.somnia.host/v1/graphql',
+    wsRpcUrl: process.env.WS_RPC_URL || 'wss://api.hideki2.infra.testnet.somnia.network/ws',
+    // Read-only checks still need a syntactically valid key to construct the trader.
+    privateKey: key ?? `0x${'11'.repeat(32)}`,
+  });
+
+  await check('RPC', async () => {
+    const [chainId, block] = await Promise.all([publicClient.getChainId(), publicClient.getBlockNumber()]);
+    if (chainId !== 50383) throw new Error(`expected chain 50383, got ${chainId}`);
+    return `chain ${chainId}, block #${block}`;
+  });
+
+  await check('Indexer + perp markets', async () => {
+    const perps = await loadPerps(exchange);
+    if (perps.length === 0) throw new Error('no perp markets found on the MarginBank');
+    return `${perps.length} markets on MarginBank ${MARGIN_BANK}`;
+  });
+
+  await check('Mark prices', async () => {
+    const perps = await loadPerps(exchange);
+    const states = await Promise.all(perps.map((p) => exchange.client.getPerpState(p.pool)));
+    const stale = perps.filter((_, i) => !states[i].markPriceOk).map((p) => p.name);
+    if (stale.length) throw new Error(`stale mark on ${stale.join(', ')}`);
+    return 'all marks live';
+  });
+
+  if (key) {
+    const account: Address = privateKeyToAccount(key).address;
+    await check('Wallet gas (STT)', async () => {
+      const bal = await publicClient.getBalance({ address: account });
+      if (bal === 0n) throw new Error(`${account} has no STT for gas`);
+      return `${formatEther(bal)} STT`;
+    });
+    await check('Wallet USDso', async () => {
+      const bal = await publicClient.readContract({
+        address: SOMNIA_HIDEKI_TESTNET_ADDRESSES.collateral as Address,
+        abi: erc20Abi,
+        functionName: 'balanceOf',
+        args: [account],
+      });
+      return `${formatUnits(bal, 18)} USDso in wallet`;
+    });
+    await check('Margin account', async () => {
+      const h = await exchange.client.getAccountHealth(MARGIN_BANK, account);
+      return `equity ${formatUnits(h.equity, 18)} USDso, maintenance ${formatUnits(h.mmReq, 18)}, ${h.marginStatus}`;
+    });
+  } else {
+    console.log('PRIVATE_KEY not set: skipping wallet checks.\n');
+  }
+
+  for (const r of results) console.log(`${r.ok ? 'PASS' : 'FAIL'}  ${r.name.padEnd(22)} ${r.detail}`);
+  const failed = results.filter((r) => !r.ok).length;
+  console.log(`\n${results.length - failed}/${results.length} checks passed`);
+  process.exit(failed ? 1 : 0);
+}
+
+main().catch((err) => {
+  console.error(err);
+  process.exit(1);
+});

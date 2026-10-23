@@ -21,6 +21,8 @@ export interface PerpInfo {
   tickSize: bigint;
   lotSize: bigint;
   minQuantity: bigint;
+  /** PerpStopOrderRegistry for on-chain stops, null when the pool has none. */
+  stopRegistry: Address | null;
 }
 
 export const publicClient = createPublicClient({ chain: hidekiTestnet, transport: http() });
@@ -81,5 +83,6 @@ export async function loadPerps(exchange: SomniaMarkets): Promise<PerpInfo[]> {
       tickSize: BigInt(m.tickSize),
       lotSize: BigInt(m.lotSize),
       minQuantity: BigInt(m.minQuantity),
+      stopRegistry: (m.stopRegistry as Address | null) ?? null,
     }));
 }

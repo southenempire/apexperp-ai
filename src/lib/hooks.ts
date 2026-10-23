@@ -3,8 +3,9 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { annualizedFundingRate, perpLiquidationPrice, type AccountHealth, type PerpMarket } from '@somnia-chain/markets-sdk';
+import { annualizedFundingRate, type AccountHealth, type PerpMarket } from '@somnia-chain/markets-sdk';
 import type { Address } from 'viem';
+import { listLiveStops, priceAtRatio, type LiveStop } from '../../agent/protection';
 import { healthRatio } from '../../agent/sentinel';
 import { exchange, loadPerps, MARGIN_BANK, publicClient, type PerpInfo } from './somnia';
 import { toNumber } from './format';
@@ -110,6 +111,8 @@ export interface PositionView {
   size: bigint;
   side: 'long' | 'short';
   sizeHuman: number;
+  markRaw: bigint;
+  mmBps: bigint;
   entry: number;
   mark: number;
   notional: number;
@@ -152,20 +155,6 @@ async function candidatePools(address: Address): Promise<PerpInfo[]> {
   return perps.filter((p) => pools.has(p.pool.toLowerCase()));
 }
 
-/** Price at which equity / maintenance margin reaches `k` (k = 1 is liquidation). */
-function priceAtRatio(k: number, equity: bigint, mmReq: bigint, size: bigint, mark: bigint, mmBps: bigint, oneBase: bigint) {
-  const kb = BigInt(Math.round(k * 10_000));
-  const p = perpLiquidationPrice({
-    equity,
-    mmReq: (mmReq * kb) / 10_000n,
-    size,
-    markPrice: mark,
-    maintenanceMarginBps: (mmBps * kb) / 10_000n,
-    oneBase,
-  });
-  return p === null || p <= 0n ? null : p;
-}
-
 export function useAccount(address: Address | null, thresholds: { reduceBelowHealth: number; flattenBelowHealth: number }) {
   const { reduceBelowHealth, flattenBelowHealth } = thresholds;
   return usePoll<AccountView>(
@@ -198,11 +187,13 @@ export function useAccount(address: Address | null, thresholds: { reduceBelowHea
               const pnlRaw = ((state.markPrice - pos.avgEntryPrice) * pos.size) / oneBase;
               const entryNotional = toNumber((absSize * pos.avgEntryPrice) / oneBase, perp.quoteDecimals);
               const pnl = toNumber(pnlRaw, perp.quoteDecimals);
-              const at = (k: number) => q(priceAtRatio(k, health.equity, health.mmReq, pos.size, state.markPrice, mmBps, oneBase));
+              const at = (k: number) => q(priceAtRatio({ k, equity: health.equity, mmReq: health.mmReq, size: pos.size, mark: state.markPrice, mmBps, oneBase }));
               return {
                 perp,
                 size: pos.size,
                 side: pos.size > 0n ? 'long' : 'short',
+                markRaw: state.markPrice,
+                mmBps,
                 sizeHuman: toNumber(absSize, perp.baseDecimals),
                 entry: toNumber(pos.avgEntryPrice, perp.quoteDecimals),
                 mark: toNumber(state.markPrice, perp.quoteDecimals),
@@ -271,4 +262,9 @@ export function useFills(address: Address | null) {
     10_000,
     [address],
   );
+}
+
+/** Pending on-chain stops for an account, refreshed every 10s. */
+export function useStops(address: Address | null) {
+  return usePoll<LiveStop[]>(address ? async () => listLiveStops(exchange, address, await getPerps()) : null, 10_000, [address]);
 }

@@ -1,15 +1,29 @@
 import { createContext, useCallback, useContext, useState, type ReactNode } from 'react';
 import { Check, Copy, ExternalLink, X, Loader2 } from 'lucide-react';
+import { LETTER_ADVANCE, MARK_FLOOR, MARK_LINE, MARK_STROKE, WORD_GLYPHS } from './brandPaths';
 
-export function Logo({ className = '' }: { className?: string }) {
+/** The ApexPerp mark: a falling price line that stops above the floor. */
+export function Mark({ className = 'h-7 w-7' }: { className?: string }) {
   return (
-    <span className={`inline-flex items-center gap-2 ${className}`}>
-      <span className="flex h-7 w-7 items-center justify-center bg-accent" aria-hidden="true">
-        <svg viewBox="0 0 16 16" className="h-4 w-4">
-          <path d="M9 1L3 9h4l-1 6 6-8H8z" fill="rgb(var(--accent-fg))" />
-        </svg>
-      </span>
-      <span className="font-display text-lg font-bold uppercase tracking-wide">ApexPerp</span>
+    <svg viewBox="0 0 14 14" className={className} aria-hidden="true">
+      <rect width="14" height="14" fill="rgb(var(--accent))" />
+      <path d={MARK_LINE} fill="none" stroke="rgb(var(--accent-fg))" strokeWidth={MARK_STROKE} strokeLinecap="butt" strokeLinejoin="miter" />
+      <path d={MARK_FLOOR} fill="rgb(var(--accent-fg))" />
+    </svg>
+  );
+}
+
+/** Mark plus the block-letter wordmark, drawn from the same shapes as public/brand. */
+export function Logo({ className = '' }: { className?: string }) {
+  const width = WORD_GLYPHS.length * LETTER_ADVANCE - 2;
+  return (
+    <span className={`inline-flex items-center gap-2.5 ${className}`}>
+      <Mark />
+      <svg viewBox={`0 0 ${width} 14`} className="h-4 w-auto fill-fg" role="img" aria-label="ApexPerp">
+        {WORD_GLYPHS.map((d, i) => (
+          <path key={i} d={d} transform={`translate(${i * LETTER_ADVANCE} 0)`} fillRule="evenodd" />
+        ))}
+      </svg>
     </span>
   );
 }

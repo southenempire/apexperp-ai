@@ -1,7 +1,7 @@
 {
   "name": "apexperp-ai",
   "version": "1.0.0",
-  "description": "Autonomous AI Agent & Sub-Second Risk Sentinel for DreamDEX Perpetuals on Somnia",
+  "description": "Liquidation guard for dreamDEX perps on Somnia: live margin health, on-chain protective stops, and an always-on Sentinel.",
   "private": false,
   "type": "module",
   "scripts": {
@@ -9,11 +9,12 @@
     "build": "vite build",
     "preview": "vite preview",
     "agent:live": "tsx --env-file-if-exists=.env agent/runner.ts",
-    "doctor": "tsx scripts/testnet-doctor.ts",
-    "testnet:ping": "tsx scripts/testnet-ping.ts",
-    "stress-test": "tsx scripts/stress-test.ts",
+    "doctor": "tsx --env-file-if-exists=.env scripts/testnet-doctor.ts",
     "open": "tsx --env-file-if-exists=.env scripts/open-position.ts",
-    "test:sentinel": "tsx scripts/sentinel.test.ts"
+    "test:sentinel": "tsx scripts/sentinel.test.ts",
+    "brand": "python3 scripts/brand.py .",
+    "protect": "tsx --env-file-if-exists=.env scripts/protect.ts",
+    "feedback:repro": "tsx feedback/repro.ts"
   },
   "dependencies": {
     "@somnia-chain/markets-sdk": "^0.32.1",

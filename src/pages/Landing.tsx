@@ -154,7 +154,7 @@ function LiveStats() {
 const STEPS = [
   { title: 'Connect your wallet', body: 'We read your margin straight from the dreamDEX contracts. No sign-up, no API keys.' },
   { title: 'See how close you are', body: 'Your health score, plus the exact prices where each position would get trimmed, closed or liquidated.' },
-  { title: 'Let it step in', body: "If health drops past your line, ApexPerp sends a sell order that can only shrink your position. It can't open new trades or flip you short." },
+  { title: 'Protect it on-chain', body: "One click puts stop orders on dreamDEX at your trim and close prices. Somnia fires them the moment the price hits the line, even with your laptop shut. They can only shrink your position, never open or flip one." },
 ];
 
 const RULES = [
@@ -179,7 +179,7 @@ export function Landing({ onLaunch }: { onLaunch: () => void }) {
               <span className="text-accent-ink">not liquidated.</span>
             </h1>
             <p className="mt-6 max-w-lg text-lg leading-relaxed text-fg/80">
-              ApexPerp keeps an eye on your dreamDEX account. If a trade turns against you, it sells off a piece before you hit liquidation, so you lose a bit instead of everything.
+              ApexPerp shows you exactly where your dreamDEX positions get liquidated, then puts stops on-chain that sell off a piece first. You lose a bit instead of everything, even if you're asleep.
             </p>
             <div className="mt-8 flex flex-col gap-3 sm:flex-row">
               <button type="button" className="btn-primary h-12 px-6 text-base" disabled={connecting} onClick={async () => (await connect()) && onLaunch()}>
@@ -246,7 +246,7 @@ export function Landing({ onLaunch }: { onLaunch: () => void }) {
           <div>
             <h2 className="display text-5xl sm:text-6xl">Don't take our word for it.</h2>
             <p className="mt-5 max-w-xl text-fg/80">
-              Every order ApexPerp sends is a real transaction on Somnia. We log each one with its hash so you can look it up yourself.
+              Every stop and every trim is a real transaction on Somnia. We log each one with its hash so you can look it up yourself.
             </p>
           </div>
           <div className="flex flex-col gap-3 sm:flex-row">

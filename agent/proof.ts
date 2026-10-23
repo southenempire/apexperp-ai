@@ -14,7 +14,7 @@ const MARKDOWN = resolve(ROOT, 'PROOF.md');
 
 export interface ProofEntry {
   timestamp: string;
-  kind: 'SENTINEL_REDUCE' | 'SENTINEL_FLATTEN' | 'OPEN_POSITION';
+  kind: 'SENTINEL_REDUCE' | 'SENTINEL_FLATTEN' | 'OPEN_POSITION' | 'ARM_TRIM_STOP' | 'ARM_CLOSE_STOP' | 'CANCEL_STOPS';
   market: string;
   side: 'buy' | 'sell';
   quantity: string;

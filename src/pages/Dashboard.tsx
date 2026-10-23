@@ -1,11 +1,12 @@
 import { useEffect, useState, type FormEvent } from 'react';
-import { Wallet } from 'lucide-react';
+import { ShieldCheck, ShieldOff, Wallet } from 'lucide-react';
 import { getAddress, isAddress, type Address } from 'viem';
 import { HealthMeter, ZONE_STYLE, zoneOf } from '../components/HealthMeter';
 import { CopyButton, ErrorNote, ExternalA, PanelHead, Skeleton, useToast } from '../components/ui';
-import { useAccount, useFills, useMarkets, type PositionView } from '../lib/hooks';
+import { useAccount, useFills, useMarkets, useStops, type PositionView } from '../lib/hooks';
+import { armProtection, cancelStops, isProtective, planProtection, stopContext, type LiveStop } from '../../agent/protection';
 import { useWallet } from '../lib/wallet';
-import { fmtPct, fmtPrice, fmtQty, fmtUsd, shortAddress, shortHash, timeAgo } from '../lib/format';
+import { fmtPct, fmtPrice, fmtQty, fmtUsd, shortAddress, shortHash, timeAgo, toNumber } from '../lib/format';
 import { DEFAULT_THRESHOLDS, DREAMDEX_URL, exchange, MAX_SLIPPAGE, ORDER_TYPE_MARKET, planReduceOrder, REPO_URL } from '../lib/somnia';
 
 type Thresholds = typeof DEFAULT_THRESHOLDS;
@@ -157,6 +158,67 @@ function HealthCard({ account, t }: { account: AccountQuery; t: Thresholds }) {
 
 /* ---------- Positions ---------- */
 
+function StopsStrip({
+  p,
+  live,
+  canTrade,
+  busy,
+  onProtect,
+  onRemove,
+}: {
+  p: PositionView;
+  live: LiveStop[] | null;
+  canTrade: boolean;
+  busy: string | null;
+  onProtect: () => void;
+  onRemove: (mine: LiveStop[]) => void;
+}) {
+  const describe = (s: LiveStop) => {
+    const what = s.quantity === 0n ? 'everything' : fmtQty(toNumber(s.quantity, p.perp.baseDecimals));
+    return `${s.isBid ? 'Buy back' : 'Sell'} ${what} at ${s.triggerOperator === 1 ? '≤' : '≥'} ${fmtPrice(toNumber(s.triggerPrice, p.perp.quoteDecimals))}`;
+  };
+  const guards = live?.filter((s) => isProtective(s, p.size)) ?? [];
+  const armed = guards.length > 0;
+  return (
+    <div className={`flex flex-col gap-3 border-l-4 px-3 py-2.5 sm:col-span-2 sm:flex-row sm:items-center sm:justify-between ${armed ? 'border-l-safe bg-safe/5' : 'border-l-border bg-surface-2/60'}`}>
+      <div className="min-w-0 text-sm">
+        {live === null ? (
+          <Skeleton className="h-5 w-56" />
+        ) : armed ? (
+          <>
+            <p className="flex items-center gap-2 font-semibold text-safe">
+              <ShieldCheck className="h-4 w-4 shrink-0" aria-hidden="true" /> Protected on-chain
+            </p>
+            <ul className="num mt-1 space-y-0.5 text-xs text-fg/80">
+              {live.map((s) => (
+                <li key={s.orderId}>
+                  {isProtective(s, p.size) ? '' : 'Take-profit: '}
+                  {describe(s)}
+                </li>
+              ))}
+            </ul>
+          </>
+        ) : (
+          <p className="flex items-center gap-2 text-fg/80">
+            <ShieldOff className="h-4 w-4 shrink-0 text-muted" aria-hidden="true" /> No on-chain stops. If you're offline when the price drops, nothing protects this.
+          </p>
+        )}
+      </div>
+      {live !== null &&
+        (armed ? (
+          <button type="button" className="btn-ghost shrink-0 px-3" disabled={!canTrade || busy !== null} onClick={() => onRemove(guards)}>
+            {busy === `${p.perp.pool}:unprotect` ? 'Removing' : 'Remove stops'}
+          </button>
+        ) : (
+          <button type="button" className="btn-primary shrink-0" disabled={!canTrade || busy !== null || !p.perp.stopRegistry} onClick={onProtect}>
+            <ShieldCheck className="h-4 w-4" aria-hidden="true" />
+            {busy === `${p.perp.pool}:protect` ? 'Arming' : 'Protect on-chain'}
+          </button>
+        ))}
+    </div>
+  );
+}
+
 function PositionsCard({ address, account, t, canTrade }: { address: Address; account: AccountQuery; t: Thresholds; canTrade: boolean }) {
   const toast = useToast();
   const [busy, setBusy] = useState<string | null>(null);
@@ -185,11 +247,55 @@ function PositionsCard({ address, account, t, canTrade }: { address: Address; ac
     }
   };
 
+  const stops = useStops(address);
+  const errorText = (err: any) =>
+    err?.code === 4001 || /rejected|denied/i.test(err?.message ?? '') ? 'You cancelled it in your wallet.' : err?.shortMessage ?? err?.message ?? 'Something went wrong.';
+
+  const protect = async (p: PositionView) => {
+    const health = account.data?.health;
+    if (!health) return;
+    setBusy(`${p.perp.pool}:protect`);
+    const id = toast.push({ tone: 'pending', title: `Protecting ${p.perp.name}`, detail: 'Your wallet will ask you to confirm each stop (plus a one-time approval the first time).' });
+    try {
+      const plan = planProtection({ perp: p.perp, size: p.size, mark: p.markRaw, equity: health.equity, mmReq: health.mmReq, mmBps: p.mmBps, thresholds: t });
+      if (plan.legs.length === 0) throw new Error(plan.skipped.join(' ') || 'Nothing to arm.');
+      const ctx = await stopContext(exchange, p.perp);
+      const results = await armProtection(exchange, p.perp, plan, ctx);
+      const last = results[results.length - 1];
+      const ok = results.every((r) => r.status === 'success');
+      toast.update(id, {
+        tone: ok ? 'success' : 'error',
+        title: ok ? `${p.perp.name} is protected on-chain. ${results.length} stop${results.length > 1 ? 's' : ''} armed.` : 'A stop transaction reverted.',
+        detail: last.hash,
+        copy: last.hash,
+      });
+      stops.retry();
+    } catch (err) {
+      toast.update(id, { tone: 'error', title: "Couldn't arm protection", detail: errorText(err) });
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const unprotect = async (p: PositionView, mine: LiveStop[]) => {
+    setBusy(`${p.perp.pool}:unprotect`);
+    const id = toast.push({ tone: 'pending', title: `Removing stops on ${p.perp.name}`, detail: 'Confirm it in your wallet. The fees come back to you.' });
+    try {
+      const res = await cancelStops(exchange, mine[0].registry, mine.map((s) => s.orderId));
+      toast.update(id, { tone: res.status === 'success' ? 'success' : 'error', title: res.status === 'success' ? 'Stops removed.' : 'The transaction reverted.', detail: res.hash, copy: res.hash });
+      stops.retry();
+    } catch (err) {
+      toast.update(id, { tone: 'error', title: "Couldn't remove the stops", detail: errorText(err) });
+    } finally {
+      setBusy(null);
+    }
+  };
+
   const rows = account.data?.positions;
   return (
     <section className="card" aria-labelledby="positions-title">
       <PanelHead id="positions-title" label="Positions">
-        {!canTrade && rows && rows.length > 0 && <span className="text-xs text-muted">Connect this wallet to trim or close</span>}
+        {!canTrade && rows && rows.length > 0 && <span className="text-xs text-muted">Connect this wallet to trim, close or protect</span>}
       </PanelHead>
 
       {account.error && !account.data && (
@@ -267,6 +373,14 @@ function PositionsCard({ address, account, t, canTrade }: { address: Address; ac
                     {busy === `${p.perp.pool}:100` ? 'Sending' : 'Close'}
                   </button>
                 </div>
+                <StopsStrip
+                  p={p}
+                  live={stops.data?.filter((s) => s.pool === p.perp.pool) ?? null}
+                  canTrade={canTrade}
+                  busy={busy}
+                  onProtect={() => protect(p)}
+                  onRemove={(mine) => unprotect(p, mine)}
+                />
               </li>
             );
           })}
@@ -274,7 +388,7 @@ function PositionsCard({ address, account, t, canTrade }: { address: Address; ac
       )}
       {rows && rows.length > 0 && (
         <p className="border-t border-border px-4 py-3 text-xs text-muted sm:px-5">
-          These prices assume only that market moves. Trims and closes can only shrink a position, and won't fill more than {MAX_SLIPPAGE * 100}% away from the current price.
+          These prices assume only that market moves. Trims and closes can only shrink a position, and won't fill more than {MAX_SLIPPAGE * 100}% away from the current price. On-chain stops sit with dreamDEX and fire through Somnia Reactivity, even with this tab closed. Each one prepays a small STT fee that you get back if you remove it.
         </p>
       )}
     </section>
@@ -317,7 +431,7 @@ function SentinelCard({ address, t, setT }: { address: Address; t: Thresholds; s
     <section className="card" aria-labelledby="sentinel-title">
       <PanelHead id="sentinel-title" label="Your lines" />
       <div className="p-4 sm:p-5">
-        <p className="text-sm text-fg/80">Where should ApexPerp step in?</p>
+        <p className="text-sm text-fg/80">Where should ApexPerp step in? New stops use these lines.</p>
         <div className="mt-3 grid grid-cols-3 gap-2">
           <NumberField id="trim-at" label="Trim at" value={t.reduceBelowHealth} step={0.05} min={1.05} max={5} suffix="x" onChange={(v) => setT({ ...t, reduceBelowHealth: v })} />
           <NumberField id="close-at" label="Close at" value={t.flattenBelowHealth} step={0.05} min={1.01} max={4} suffix="x" onChange={(v) => setT({ ...t, flattenBelowHealth: v })} />
@@ -326,9 +440,9 @@ function SentinelCard({ address, t, setT }: { address: Address; t: Thresholds; s
         {invalid && <p className="mt-2 text-sm text-danger">The close line has to sit below the trim line.</p>}
       </div>
       <div className="border-t border-border p-4 sm:p-5">
-        <p className="font-display text-lg font-bold uppercase">Keep it running 24/7</p>
+        <p className="font-display text-lg font-bold uppercase">Want a bot too?</p>
         <p className="mt-1 text-sm text-fg/80">
-          This page only acts when you click. To have ApexPerp watch <span className="num text-fg">{shortAddress(address)}</span> around the clock, run the bot from the repo with these settings:
+          On-chain stops already cover you while you're away. If you'd also like ApexPerp to watch whole-account health for <span className="num text-fg">{shortAddress(address)}</span> and trim every second, run the Sentinel from the repo:
         </p>
         <div className="mt-3 flex items-start border border-border bg-bg">
           <pre className="num min-w-0 flex-1 overflow-x-auto whitespace-pre p-3 text-xs leading-relaxed">{command}</pre>

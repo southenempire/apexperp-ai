@@ -47,3 +47,62 @@ test('protective price crosses the book within slippage, aligned to tick', () =>
   assert.equal(protectivePrice(1_001n, true, 0.02, 10n), 1_030n);
   assert.equal(protectivePrice(1_001n, false, 0.02, 10n), 980n);
 });
+
+/* ---------- On-chain stop planning ---------- */
+
+import { planProtection } from '../agent/protection';
+
+const E18 = 10n ** 18n;
+const eth = {
+  name: 'ETH-PERP',
+  pool: '0x0000000000000000000000000000000000000001' as const,
+  baseDecimals: 18,
+  quoteDecimals: 18,
+  tickSize: E18 / 100n,
+  lotSize: E18 / 10_000n,
+  minQuantity: (4n * E18) / 1000n,
+  stopRegistry: '0x0000000000000000000000000000000000000002' as const,
+};
+// 1 ETH long at 2,400 with $400 equity and 5% maintenance: mmReq = $120, health 3.33x.
+const longBase = { perp: eth, size: E18, mark: 2400n * E18, equity: 400n * E18, mmReq: 120n * E18, mmBps: 500n, thresholds: t };
+
+test('long gets a 25% trim stop and a whole-position close stop below the mark', () => {
+  const plan = planProtection(longBase);
+  assert.deepEqual(plan.skipped, []);
+  const [trim, close] = plan.legs;
+  assert.equal(trim.kind, 'trim');
+  assert.equal(trim.isBid, false);
+  assert.equal(trim.triggerOperator, 1);
+  assert.equal(trim.quantity, E18 / 4n);
+  // equity(p) = 1.5 x mm(p) solves to ~2,162.16; aligned up to the 0.01 tick.
+  assert.equal(trim.triggerPrice, 216217n * (E18 / 100n));
+  assert.equal(close.kind, 'close');
+  assert.equal(close.quantity, 0n);
+  assert.ok(close.triggerPrice < trim.triggerPrice);
+});
+
+test('short stops buy back above the mark', () => {
+  const plan = planProtection({ ...longBase, size: -E18 });
+  for (const leg of plan.legs) {
+    assert.equal(leg.isBid, true);
+    assert.equal(leg.triggerOperator, 0);
+    assert.ok(leg.triggerPrice > longBase.mark);
+  }
+  assert.ok(plan.legs[1].triggerPrice > plan.legs[0].triggerPrice);
+});
+
+test('a leg already past its line is skipped, not armed to fire instantly', () => {
+  // Health 1.3x: inside the trim zone, still above the close line.
+  const plan = planProtection({ ...longBase, equity: 156n * E18 });
+  assert.deepEqual(plan.legs.map((l) => l.kind), ['close']);
+  assert.match(plan.skipped[0], /already past the trim line/);
+});
+
+import { isProtective } from '../agent/protection';
+
+test('only loss-side stops count as protection; take-profits are left alone', () => {
+  assert.equal(isProtective({ isBid: false, triggerOperator: 1 }, 1n), true); // long stop-loss
+  assert.equal(isProtective({ isBid: false, triggerOperator: 0 }, 1n), false); // long take-profit
+  assert.equal(isProtective({ isBid: true, triggerOperator: 0 }, -1n), true); // short stop-loss
+  assert.equal(isProtective({ isBid: true, triggerOperator: 1 }, -1n), false); // short take-profit
+});
