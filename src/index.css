@@ -2,35 +2,83 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Design tokens (RGB channels so Tailwind opacity modifiers work). Dark-first trading UI. */
+:root {
+  color-scheme: dark;
+  --bg: 8 10 15;
+  --surface: 14 17 25;
+  --surface-2: 20 24 35;
+  --border: 34 40 56;
+  --fg: 236 239 245;
+  --muted: 148 156 176;
+  --accent: 132 116 255;
+  --accent-fg: 255 255 255;
+  --safe: 52 211 153;
+  --warn: 251 191 36;
+  --danger: 248 113 113;
+}
+
 @layer base {
+  html {
+    scroll-behavior: smooth;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    html {
+      scroll-behavior: auto;
+    }
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
   body {
-    background-color: #07090e;
-    color: #e2e8f0;
-    overflow-x: hidden;
+    @apply bg-bg text-fg font-sans antialiased;
+  }
+  ::selection {
+    background: rgb(var(--accent) / 0.35);
   }
 }
 
-/* Custom terminal scrollbars */
-::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
-}
-::-webkit-scrollbar-track {
-  background: #0c1017;
-}
-::-webkit-scrollbar-thumb {
-  background: #233044;
-  border-radius: 3px;
-}
-::-webkit-scrollbar-thumb:hover {
-  background: #38bdf8;
+@layer components {
+  .card {
+    @apply rounded-2xl border border-border bg-surface;
+  }
+  .btn {
+    @apply inline-flex min-h-10 items-center justify-center gap-2 rounded-xl px-4 text-sm font-semibold transition-colors
+      focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-bg
+      disabled:cursor-not-allowed disabled:opacity-50;
+  }
+  .btn-primary {
+    @apply btn bg-accent text-accent-fg hover:bg-accent/90;
+  }
+  .btn-secondary {
+    @apply btn border border-border bg-surface-2 text-fg hover:border-muted/40;
+  }
+  .btn-ghost {
+    @apply btn text-muted hover:bg-surface-2 hover:text-fg;
+  }
+  .label {
+    @apply text-xs font-medium uppercase tracking-wider text-muted;
+  }
+  .num {
+    @apply font-mono tabular-nums;
+  }
 }
 
-@keyframes pulse-slow {
+.bg-grid {
+  background-image: linear-gradient(rgb(var(--border) / 0.35) 1px, transparent 1px),
+    linear-gradient(90deg, rgb(var(--border) / 0.35) 1px, transparent 1px);
+  background-size: 48px 48px;
+  mask-image: radial-gradient(ellipse at top, black 20%, transparent 70%);
+}
+
+@keyframes live-dot {
   0%, 100% { opacity: 1; }
-  50% { opacity: 0.4; }
+  50% { opacity: 0.35; }
 }
-
-.animate-pulse-slow {
-  animation: pulse-slow 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+.live-dot {
+  animation: live-dot 2s ease-in-out infinite;
 }

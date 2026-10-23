@@ -11,9 +11,9 @@
 import { formatUnits, type Address } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 import { loadEnv } from './config';
-import { connect, loadPerps, MARGIN_BANK, publicClient, reducingCapacityAbi, type PerpInfo } from './markets';
+import { connect, loadPerps, MARGIN_BANK, planReduceOrder, type PerpInfo } from './markets';
 import { recordProof } from './proof';
-import { decide, healthRatio, protectivePrice, reduceQuantity, type SentinelAction } from './sentinel';
+import { decide, healthRatio, type SentinelAction } from './sentinel';
 
 const ORDER_TYPE_MARKET = 2; // IOC
 
@@ -33,31 +33,12 @@ async function openPositions(perps: PerpInfo[]) {
 }
 
 async function protect(perp: PerpInfo, size: bigint, action: Exclude<SentinelAction, 'NONE'>, pct: number, ratio: number) {
-  const capacity = await publicClient.readContract({
-    address: perp.pool,
-    abi: reducingCapacityAbi,
-    functionName: 'getReducingCapacity',
-    args: [account],
-  });
-  const quantity = reduceQuantity({
-    size,
-    pct,
-    lotSize: perp.lotSize,
-    minQuantity: perp.minQuantity,
-    reducingCapacity: capacity.effectiveReducingCapacity,
-  });
-  if (quantity === 0n) {
-    log(`  ${perp.name}: no reduce-only order possible (capacity below pool minimum), skipping`);
+  const plan = await planReduceOrder(exchange, account, perp, size, pct, env.maxSlippage);
+  if (!plan.ok) {
+    log(`  ${perp.name}: skipped, ${plan.reason}`);
     return;
   }
-
-  const isBid = size < 0n; // buy back a short, sell down a long
-  const state = await client.getPerpState(perp.pool);
-  if (!state.markPriceOk) {
-    log(`  ${perp.name}: mark price is stale, not sending a blind market order`);
-    return;
-  }
-  const price = protectivePrice(state.markPrice, isBid, env.maxSlippage, perp.tickSize);
+  const { isBid, price, quantity } = plan;
   const qtyText = formatUnits(quantity, perp.baseDecimals);
   const priceText = formatUnits(price, perp.quoteDecimals);
   log(`  ${perp.name}: ${isBid ? 'BUY' : 'SELL'} ${qtyText} @ <=${priceText} (IOC, reduce-only)`);
