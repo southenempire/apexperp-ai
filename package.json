@@ -8,12 +8,15 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "agent:live": "tsx agent/runner.ts",
+    "agent:live": "tsx --env-file-if-exists=.env agent/runner.ts",
     "doctor": "tsx scripts/testnet-doctor.ts",
     "testnet:ping": "tsx scripts/testnet-ping.ts",
-    "stress-test": "tsx scripts/stress-test.ts"
+    "stress-test": "tsx scripts/stress-test.ts",
+    "open": "tsx --env-file-if-exists=.env scripts/open-position.ts",
+    "test:sentinel": "tsx scripts/sentinel.test.ts"
   },
   "dependencies": {
+    "@somnia-chain/markets-sdk": "^0.32.1",
     "lucide-react": "^0.460.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",

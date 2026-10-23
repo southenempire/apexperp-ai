@@ -58,7 +58,7 @@ apexperp-ai provides automated trade routing and cross-margin risk mitigation fo
 | **WebSocket** | `wss://api.hideki2.infra.testnet.somnia.network/ws` |
 | **GraphQL Indexer** | `https://hideki-dev.smk.somnia.host/v1/graphql` |
 | **Operator Registry** | `0x6B2FbfeD328FF5F20C0BE7D3C3437613aFFE8D3a` |
-| **MarginBank Proxy** | `0x15C7e8CE38F021c5b45d098AaD788f63090bF20A` |
+| **MarginBank Proxy** | `0x478769E1177C0773c43A593DCCc4Ad15F15F1394` |
 
 ---
 
@@ -73,6 +73,24 @@ apexperp-ai provides automated trade routing and cross-margin risk mitigation fo
 git clone https://github.com/southenempire/apexperp-ai.git
 cd apexperp-ai
 npm install
+```
+
+### Run the Sentinel (live on Somnia Tokyo testnet)
+
+The Sentinel reads your dreamDEX cross-margin account health on-chain (`equity / maintenance margin` from the MarginBank) and sends **reduce-only IOC market orders** when it drops:
+
+| Health (equity / mm) | Action |
+| :--- | :--- |
+| `<= 1.50x` | Trim every open position by 25% (lot-aligned, capped at the pool's reducing capacity) |
+| `<= 1.15x` | Close every position |
+
+Every transaction it sends is appended to [PROOF.md](./PROOF.md) and `proof/transactions.jsonl` with its hash, block and status.
+
+```bash
+cp .env.example .env        # set PRIVATE_KEY to your testnet wallet
+npm run open -- ETH long 0.01   # optional: open a real position to guard (add --deposit 50 to fund margin first)
+npm run agent:live              # start the Sentinel (set DRY_RUN=1 to log decisions without sending)
+npm run test:sentinel           # unit tests for the decision and sizing rules
 ```
 
 ### Verification & Testing

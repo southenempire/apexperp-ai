@@ -26,7 +26,7 @@ export const SOMNIA_TOKYO_TESTNET = {
   indexerUrl: 'https://hideki-dev.smk.somnia.host/v1/graphql',
   contracts: {
     operatorRegistry: '0x6B2FbfeD328FF5F20C0BE7D3C3437613aFFE8D3a',
-    marginBank: '0x15C7e8CE38F021c5b45d098AaD788f63090bF20A',
+    marginBank: '0x478769E1177C0773c43A593DCCc4Ad15F15F1394',
   }
 } as const;
 
