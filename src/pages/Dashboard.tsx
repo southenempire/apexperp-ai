@@ -1,14 +1,15 @@
 import { useEffect, useState, type FormEvent } from 'react';
-import { Activity, ArrowDownRight, ArrowUpRight, Eye, Scissors, ShieldCheck, Terminal, Wallet, X } from 'lucide-react';
+import { Wallet } from 'lucide-react';
 import { getAddress, isAddress, type Address } from 'viem';
 import { HealthMeter, ZONE_STYLE, zoneOf } from '../components/HealthMeter';
-import { CopyButton, ErrorNote, ExternalA, Skeleton, useToast } from '../components/ui';
+import { CopyButton, ErrorNote, ExternalA, PanelHead, Skeleton, useToast } from '../components/ui';
 import { useAccount, useFills, useMarkets, type PositionView } from '../lib/hooks';
 import { useWallet } from '../lib/wallet';
 import { fmtPct, fmtPrice, fmtQty, fmtUsd, shortAddress, shortHash, timeAgo } from '../lib/format';
 import { DEFAULT_THRESHOLDS, DREAMDEX_URL, exchange, MAX_SLIPPAGE, ORDER_TYPE_MARKET, planReduceOrder, REPO_URL } from '../lib/somnia';
 
 type Thresholds = typeof DEFAULT_THRESHOLDS;
+type AccountQuery = ReturnType<typeof useAccount>;
 
 function useThresholds() {
   const [t, setT] = useState<Thresholds>(() => {
@@ -26,7 +27,7 @@ function useThresholds() {
   return [t, setT] as const;
 }
 
-/* ---------- Empty state: nothing to watch yet ---------- */
+/* ---------- Look up an address ---------- */
 
 function WatchForm({ onWatch, compact = false }: { onWatch: (a: Address) => void; compact?: boolean }) {
   const [value, setValue] = useState('');
@@ -34,20 +35,19 @@ function WatchForm({ onWatch, compact = false }: { onWatch: (a: Address) => void
   const submit = (e: FormEvent) => {
     e.preventDefault();
     const v = value.trim();
-    if (!isAddress(v)) return setError('Enter a valid 0x address.');
+    if (!isAddress(v)) return setError("That doesn't look like a wallet address. It should start with 0x.");
     setError(null);
     onWatch(getAddress(v));
   };
   return (
     <form onSubmit={submit} noValidate className="w-full">
       <label htmlFor="watch-address" className={compact ? 'sr-only' : 'label'}>
-        Watch an address
+        Look up any address
       </label>
-      <div className={`flex gap-2 ${compact ? '' : 'mt-2'}`}>
+      <div className={`flex ${compact ? '' : 'mt-2'}`}>
         <input
           id="watch-address"
           type="text"
-          inputMode="text"
           autoComplete="off"
           spellCheck={false}
           placeholder="0x…"
@@ -55,11 +55,10 @@ function WatchForm({ onWatch, compact = false }: { onWatch: (a: Address) => void
           onChange={(e) => setValue(e.target.value)}
           aria-invalid={!!error}
           aria-describedby={error ? 'watch-error' : undefined}
-          className="num min-h-10 w-full min-w-0 rounded-xl border border-border bg-bg px-3 text-sm placeholder:text-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+          className="num min-h-11 w-full min-w-0 border border-r-0 border-border bg-bg px-3 text-sm placeholder:text-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent-ink"
         />
-        <button type="submit" className="btn-secondary shrink-0">
-          <Eye className="h-4 w-4" aria-hidden="true" />
-          Watch
+        <button type="submit" className="btn-secondary min-h-11 shrink-0">
+          Look up
         </button>
       </div>
       {error && (
@@ -74,28 +73,26 @@ function WatchForm({ onWatch, compact = false }: { onWatch: (a: Address) => void
 function ConnectPrompt({ onWatch }: { onWatch: (a: Address) => void }) {
   const { connect, connecting, error, hasProvider } = useWallet();
   return (
-    <div className="mx-auto max-w-lg py-16 text-center">
-      <span className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-accent/15 text-accent">
-        <ShieldCheck className="h-7 w-7" aria-hidden="true" />
-      </span>
-      <h1 className="mt-6 text-3xl font-bold tracking-tight">Check your margin health</h1>
-      <p className="mt-3 text-muted">Connect the wallet you trade dreamDEX perps with. You can also watch any address read-only.</p>
-      <button type="button" className="btn-primary mt-8 h-12 w-full text-base" disabled={connecting} onClick={() => connect()}>
-        <Wallet className="h-5 w-5" aria-hidden="true" />
-        {connecting ? 'Check your wallet…' : hasProvider ? 'Connect wallet' : 'No wallet detected'}
-      </button>
-      {error && (
-        <p role="alert" className="mt-3 text-sm text-danger">
-          {error}
-        </p>
-      )}
-      <div className="my-8 flex items-center gap-3 text-xs uppercase tracking-wider text-muted">
-        <span className="h-px flex-1 bg-border" />
-        or
-        <span className="h-px flex-1 bg-border" />
+    <div className="mx-auto grid max-w-6xl gap-px border border-border bg-border md:grid-cols-2">
+      <div className="bg-surface p-6 sm:p-10">
+        <h1 className="display text-5xl">How close are you?</h1>
+        <p className="mt-4 max-w-sm text-fg/80">Connect the wallet you trade dreamDEX perps with. We'll show you your health and where each position would get trimmed.</p>
+        <button type="button" className="btn-primary mt-8 h-12 w-full text-base sm:w-auto sm:px-8" disabled={connecting} onClick={() => connect()}>
+          <Wallet className="h-5 w-5" aria-hidden="true" />
+          {connecting ? 'Check your wallet' : hasProvider ? 'Connect wallet' : 'No wallet found'}
+        </button>
+        {error && (
+          <p role="alert" className="mt-3 text-sm text-danger">
+            {error}
+          </p>
+        )}
       </div>
-      <div className="text-left">
-        <WatchForm onWatch={onWatch} />
+      <div className="bg-surface p-6 sm:p-10">
+        <h2 className="display text-3xl">Just looking?</h2>
+        <p className="mt-4 max-w-sm text-fg/80">Paste any address to see its account. Read-only, nothing to sign.</p>
+        <div className="mt-8">
+          <WatchForm onWatch={onWatch} />
+        </div>
       </div>
     </div>
   );
@@ -103,49 +100,56 @@ function ConnectPrompt({ onWatch }: { onWatch: (a: Address) => void }) {
 
 /* ---------- Health ---------- */
 
-type AccountQuery = ReturnType<typeof useAccount>;
+const ZONE_SENTENCE = {
+  flat: "There's nothing open on this account right now.",
+  safe: "You're comfortably above the trim line.",
+  trim: "You're in the trim zone. Time to cut some size.",
+  flatten: "You're one bad candle from liquidation. Close it down.",
+  liquidation: 'This account can be liquidated right now.',
+};
 
 function HealthCard({ account, t }: { account: AccountQuery; t: Thresholds }) {
-  if (account.error && !account.data) return <ErrorNote message={`Could not read account health: ${account.error}`} onRetry={account.retry} />;
+  if (account.error && !account.data) return <ErrorNote message={`Couldn't read this account's health. ${account.error}`} onRetry={account.retry} />;
 
   const d = account.data;
   const zone = zoneOf(d?.ratio ?? null, t);
   const style = ZONE_STYLE[zone];
   return (
-    <section className="card p-5 sm:p-6" aria-labelledby="health-title">
-      <div className="flex items-center justify-between gap-3">
-        <h2 id="health-title" className="label">Account health</h2>
-        {d && <span className={`rounded-full bg-surface-2 px-2.5 py-1 text-xs font-semibold ${style.text}`}>{style.label}</span>}
-      </div>
+    <section className="card" aria-labelledby="health-title">
+      <PanelHead id="health-title" label="Health">
+        {d && <span className={`font-display text-xs font-bold uppercase tracking-wider ${style.text}`}>{style.label}</span>}
+      </PanelHead>
       {!d ? (
-        <div className="mt-4 space-y-4">
-          <Skeleton className="h-14 w-40" />
-          <Skeleton className="h-3 w-full" />
-          <Skeleton className="h-10 w-full" />
+        <div className="space-y-4 p-4 sm:p-5">
+          <Skeleton className="h-16 w-44" />
+          <Skeleton className="h-9 w-full" />
+          <Skeleton className="h-14 w-full" />
         </div>
       ) : (
-        <>
-          <p className={`num mt-3 text-6xl font-bold ${style.text}`}>
-            {d.ratio === null ? '—' : d.ratio.toFixed(2)}
-            {d.ratio !== null && <span className="text-3xl text-muted">x</span>}
-          </p>
-          <p className="mt-1 text-sm text-muted">Equity over maintenance margin. 1.00x is liquidation.</p>
-          <div className="mt-8">
+        <div className="p-4 sm:p-5">
+          <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-2">
+            <p className={`num text-7xl font-semibold leading-none ${style.text}`}>
+              {d.ratio === null ? '—' : d.ratio.toFixed(2)}
+              {d.ratio !== null && <span className="text-3xl text-muted">x</span>}
+            </p>
+            <p className="max-w-xs pb-1 text-sm text-fg/80">{ZONE_SENTENCE[zone]}</p>
+          </div>
+          <div className="mt-6">
             <HealthMeter ratio={d.ratio} {...t} />
           </div>
-          <dl className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-3">
+          <dl className="mt-6 grid grid-cols-1 border-t border-border sm:grid-cols-3">
             {[
               ['Equity', fmtUsd(d.equity)],
-              ['Maintenance margin', fmtUsd(d.maintenance)],
-              ['Buffer to trim', d.ratio === null ? '—' : fmtUsd(d.equity - d.maintenance * t.reduceBelowHealth, { sign: true })],
-            ].map(([label, value]) => (
-              <div key={label} className="rounded-xl bg-bg/60 p-3">
+              ['Margin you must keep', fmtUsd(d.maintenance)],
+              ['Room before a trim', d.ratio === null ? '—' : fmtUsd(d.equity - d.maintenance * t.reduceBelowHealth, { sign: true })],
+            ].map(([label, value], i) => (
+              <div key={label} className={`py-3 sm:px-4 ${i ? 'border-t border-border sm:border-l sm:border-t-0' : 'sm:pl-0'}`}>
                 <dt className="text-xs text-muted">{label}</dt>
-                <dd className="num mt-1 font-semibold">{value}</dd>
+                <dd className="num mt-1 text-lg font-semibold">{value}</dd>
               </div>
             ))}
           </dl>
-        </>
+        </div>
       )}
     </section>
   );
@@ -158,24 +162,24 @@ function PositionsCard({ address, account, t, canTrade }: { address: Address; ac
   const [busy, setBusy] = useState<string | null>(null);
 
   const reduce = async (p: PositionView, pct: number) => {
-    const verb = pct === 100 ? 'Close' : `Trim ${pct}%`;
+    const verb = pct === 100 ? 'Closing' : `Selling ${pct}% of`;
     setBusy(`${p.perp.pool}:${pct}`);
-    const id = toast.push({ tone: 'pending', title: `${verb} ${p.perp.name}`, detail: 'Confirm the order in your wallet…' });
+    const id = toast.push({ tone: 'pending', title: `${verb} ${p.perp.name}`, detail: 'Confirm it in your wallet.' });
     try {
       const plan = await planReduceOrder(exchange, address, p.perp, p.size, pct, MAX_SLIPPAGE);
-      if (!plan.ok) throw new Error(`Cannot build a reduce-only order: ${plan.reason}.`);
+      if (!plan.ok) throw new Error(`Can't place this order: ${plan.reason}.`);
       const res = await exchange.trader.placePerpOrder({ pool: p.perp.pool, isBid: plan.isBid, price: plan.price, quantity: plan.quantity, orderType: ORDER_TYPE_MARKET });
       const ok = res.receipt.status === 'success';
       toast.update(id, {
         tone: ok ? 'success' : 'error',
-        title: ok ? `${verb} ${p.perp.name}: ${res.fills.length ? 'filled' : 'sent, no fill'}` : 'Transaction reverted',
+        title: ok ? (res.fills.length ? `Done. ${p.perp.name} ${pct === 100 ? 'closed' : 'trimmed'}.` : 'Sent, but nothing filled. The book may be thin.') : 'The transaction reverted.',
         detail: res.hash,
         copy: res.hash,
       });
       account.retry();
     } catch (err: any) {
-      const msg = err?.code === 4001 || /rejected|denied/i.test(err?.message ?? '') ? 'You rejected the request.' : err?.shortMessage ?? err?.message ?? 'Unknown error';
-      toast.update(id, { tone: 'error', title: `${verb} failed`, detail: msg });
+      const msg = err?.code === 4001 || /rejected|denied/i.test(err?.message ?? '') ? 'You cancelled it in your wallet.' : err?.shortMessage ?? err?.message ?? 'Something went wrong.';
+      toast.update(id, { tone: 'error', title: "That didn't go through", detail: msg });
     } finally {
       setBusy(null);
     }
@@ -183,64 +187,61 @@ function PositionsCard({ address, account, t, canTrade }: { address: Address; ac
 
   const rows = account.data?.positions;
   return (
-    <section className="card overflow-hidden" aria-labelledby="positions-title">
-      <div className="flex items-center justify-between gap-3 p-5 pb-3 sm:px-6">
-        <h2 id="positions-title" className="label">Positions</h2>
+    <section className="card" aria-labelledby="positions-title">
+      <PanelHead id="positions-title" label="Positions">
         {!canTrade && rows && rows.length > 0 && <span className="text-xs text-muted">Connect this wallet to trim or close</span>}
-      </div>
+      </PanelHead>
 
       {account.error && !account.data && (
-        <div className="px-5 pb-5 sm:px-6">
-          <ErrorNote message={`Could not read positions: ${account.error}`} onRetry={account.retry} />
+        <div className="p-4 sm:p-5">
+          <ErrorNote message={`Couldn't load positions. ${account.error}`} onRetry={account.retry} />
         </div>
       )}
       {!account.data && !account.error && (
-        <div className="space-y-2 px-5 pb-5 sm:px-6">
-          <Skeleton className="h-16 w-full" />
-          <Skeleton className="h-16 w-full" />
+        <div className="space-y-px">
+          <Skeleton className="h-28 w-full" />
+          <Skeleton className="h-28 w-full" />
         </div>
       )}
       {rows && rows.length === 0 && (
-        <div className="px-5 pb-8 pt-4 text-center sm:px-6">
-          <p className="font-semibold">No open positions</p>
-          <p className="mt-1 text-sm text-muted">Open a perp on dreamDEX and it shows up here within seconds.</p>
-          <a className="btn-secondary mt-4" href={DREAMDEX_URL} target="_blank" rel="noreferrer">
-            Trade on dreamDEX
+        <div className="p-6 sm:p-8">
+          <p className="font-display text-2xl font-bold uppercase">No open positions</p>
+          <p className="mt-1 text-sm text-fg/80">Open a trade on dreamDEX and it'll show up here a few seconds later.</p>
+          <a className="btn-secondary mt-5" href={DREAMDEX_URL} target="_blank" rel="noreferrer">
+            Go to dreamDEX
           </a>
         </div>
       )}
       {rows && rows.length > 0 && (
-        <ul className="divide-y divide-border border-t border-border">
+        <ul>
           {rows.map((p) => {
             const long = p.side === 'long';
             return (
-              <li key={p.perp.pool} className="grid gap-4 p-5 sm:grid-cols-2 sm:items-center sm:px-6">
+              <li key={p.perp.pool} className="grid gap-4 border-b border-border p-4 last:border-b-0 sm:grid-cols-2 sm:items-center sm:p-5">
                 <div className="flex items-center gap-3">
-                  <span className={`flex h-10 w-10 items-center justify-center rounded-xl ${long ? 'bg-safe/10 text-safe' : 'bg-danger/10 text-danger'}`}>
-                    {long ? <ArrowUpRight className="h-5 w-5" aria-hidden="true" /> : <ArrowDownRight className="h-5 w-5" aria-hidden="true" />}
-                  </span>
+                  <span className={`w-1 self-stretch ${long ? 'bg-safe' : 'bg-danger'}`} aria-hidden="true" />
                   <div>
-                    <p className="font-semibold">{p.perp.name}</p>
+                    <p className="font-display text-xl font-bold uppercase">{p.perp.name}</p>
                     <p className="num text-xs text-muted">
-                      <span className={long ? 'text-safe' : 'text-danger'}>{long ? 'Long' : 'Short'}</span> {fmtQty(p.sizeHuman)} · {fmtUsd(p.notional)}
+                      <span className={long ? 'text-safe' : 'text-danger'}>{long ? 'LONG' : 'SHORT'}</span> {fmtQty(p.sizeHuman)} · {fmtUsd(p.notional)}
                     </p>
                   </div>
                 </div>
                 <div className="num text-sm sm:text-right">
-                  <p className={p.pnl >= 0 ? 'text-safe' : 'text-danger'}>
+                  <p className={`text-base font-semibold ${p.pnl >= 0 ? 'text-safe' : 'text-danger'}`}>
                     {fmtUsd(p.pnl, { sign: true })} <span className="text-xs">({fmtPct(p.pnlPct, { sign: true })})</span>
                   </p>
                   <p className="text-xs text-muted">
-                    Entry {fmtPrice(p.entry)} · Mark {fmtPrice(p.mark)}
+                    in at {fmtPrice(p.entry)} · now {fmtPrice(p.mark)}
                   </p>
                 </div>
-                <dl className="num grid grid-cols-3 gap-2 text-xs">
+                <dl className="num grid grid-cols-3 border border-border text-xs">
                   {[
                     ['Trim at', p.trimAt, 'text-warn'],
                     ['Close at', p.flattenAt, 'text-danger'],
-                    ['Liq at', p.liquidationAt, 'text-danger'],
-                  ].map(([label, v, tone]) => (
-                    <div key={label as string} className="rounded-lg bg-bg/60 px-2 py-1.5">
+                    ['Liquidated at', p.liquidationAt, 'text-danger'],
+                  ].map(([label, v, tone], i) => (
+                    <div key={label as string} className={`px-2 py-1.5 ${i ? 'border-l border-border' : ''}`}>
                       <dt className="whitespace-nowrap text-muted">{label as string}</dt>
                       <dd className={`mt-0.5 font-semibold ${tone}`}>{v === null ? '—' : fmtPrice(v as number)}</dd>
                     </div>
@@ -252,20 +253,18 @@ function PositionsCard({ address, account, t, canTrade }: { address: Address; ac
                     className="btn-secondary flex-1 sm:flex-none"
                     disabled={!canTrade || busy !== null}
                     onClick={() => reduce(p, t.reducePercentage)}
-                    aria-label={`Trim ${p.perp.name} by ${t.reducePercentage}%`}
+                    aria-label={`Sell ${t.reducePercentage}% of ${p.perp.name}`}
                   >
-                    <Scissors className="h-4 w-4" aria-hidden="true" />
-                    {busy === `${p.perp.pool}:${t.reducePercentage}` ? 'Sending…' : `Trim ${t.reducePercentage}%`}
+                    {busy === `${p.perp.pool}:${t.reducePercentage}` ? 'Sending' : `Trim ${t.reducePercentage}%`}
                   </button>
                   <button
                     type="button"
-                    className="btn flex-1 border border-danger/40 text-danger hover:bg-danger/10 sm:flex-none"
+                    className="btn-danger flex-1 sm:flex-none"
                     disabled={!canTrade || busy !== null}
                     onClick={() => reduce(p, 100)}
                     aria-label={`Close ${p.perp.name}`}
                   >
-                    <X className="h-4 w-4" aria-hidden="true" />
-                    {busy === `${p.perp.pool}:100` ? 'Sending…' : 'Close'}
+                    {busy === `${p.perp.pool}:100` ? 'Sending' : 'Close'}
                   </button>
                 </div>
               </li>
@@ -274,15 +273,15 @@ function PositionsCard({ address, account, t, canTrade }: { address: Address; ac
         </ul>
       )}
       {rows && rows.length > 0 && (
-        <p className="border-t border-border px-5 py-3 text-xs text-muted sm:px-6">
-          Trigger prices assume only that market moves. Trims and closes are reduce-only IOC orders with at most {MAX_SLIPPAGE * 100}% slippage.
+        <p className="border-t border-border px-4 py-3 text-xs text-muted sm:px-5">
+          These prices assume only that market moves. Trims and closes can only shrink a position, and won't fill more than {MAX_SLIPPAGE * 100}% away from the current price.
         </p>
       )}
     </section>
   );
 }
 
-/* ---------- Sentinel ---------- */
+/* ---------- Your lines ---------- */
 
 function NumberField({ id, label, value, onChange, step, min, max, suffix }: { id: string; label: string; value: number; onChange: (v: number) => void; step: number; min: number; max: number; suffix: string }) {
   return (
@@ -290,7 +289,7 @@ function NumberField({ id, label, value, onChange, step, min, max, suffix }: { i
       <label htmlFor={id} className="text-xs text-muted">
         {label}
       </label>
-      <div className="mt-1 flex items-center rounded-xl border border-border bg-bg focus-within:ring-2 focus-within:ring-accent">
+      <div className="mt-1 flex items-center border border-border bg-bg focus-within:ring-2 focus-within:ring-inset focus-within:ring-accent-ink">
         <input
           id={id}
           type="number"
@@ -315,31 +314,27 @@ function SentinelCard({ address, t, setT }: { address: Address; t: Thresholds; s
   const invalid = t.flattenBelowHealth >= t.reduceBelowHealth;
   const command = `# .env\nREDUCE_BELOW_HEALTH=${t.reduceBelowHealth}\nFLATTEN_BELOW_HEALTH=${t.flattenBelowHealth}\nREDUCE_PERCENTAGE=${t.reducePercentage}\n\nnpm run agent:live`;
   return (
-    <section className="card p-5 sm:p-6" aria-labelledby="sentinel-title">
-      <div className="flex items-center gap-2">
-        <ShieldCheck className="h-4 w-4 text-accent" aria-hidden="true" />
-        <h2 id="sentinel-title" className="label">Sentinel rules</h2>
-      </div>
-      <div className="mt-4 grid grid-cols-3 gap-2">
-        <NumberField id="trim-at" label="Trim at" value={t.reduceBelowHealth} step={0.05} min={1.05} max={5} suffix="x" onChange={(v) => setT({ ...t, reduceBelowHealth: v })} />
-        <NumberField id="close-at" label="Close at" value={t.flattenBelowHealth} step={0.05} min={1.01} max={4} suffix="x" onChange={(v) => setT({ ...t, flattenBelowHealth: v })} />
-        <NumberField id="trim-pct" label="Trim size" value={t.reducePercentage} step={5} min={5} max={100} suffix="%" onChange={(v) => setT({ ...t, reducePercentage: Math.round(v) })} />
-      </div>
-      {invalid && <p className="mt-2 text-sm text-danger">Close threshold must be below the trim threshold.</p>}
-
-      <div className="mt-6 rounded-xl border border-border bg-bg/60 p-4">
-        <div className="flex items-center gap-2 text-sm font-semibold">
-          <Terminal className="h-4 w-4 text-muted" aria-hidden="true" />
-          Run it 24/7
+    <section className="card" aria-labelledby="sentinel-title">
+      <PanelHead id="sentinel-title" label="Your lines" />
+      <div className="p-4 sm:p-5">
+        <p className="text-sm text-fg/80">Where should ApexPerp step in?</p>
+        <div className="mt-3 grid grid-cols-3 gap-2">
+          <NumberField id="trim-at" label="Trim at" value={t.reduceBelowHealth} step={0.05} min={1.05} max={5} suffix="x" onChange={(v) => setT({ ...t, reduceBelowHealth: v })} />
+          <NumberField id="close-at" label="Close at" value={t.flattenBelowHealth} step={0.05} min={1.01} max={4} suffix="x" onChange={(v) => setT({ ...t, flattenBelowHealth: v })} />
+          <NumberField id="trim-pct" label="Trim by" value={t.reducePercentage} step={5} min={5} max={100} suffix="%" onChange={(v) => setT({ ...t, reducePercentage: Math.round(v) })} />
         </div>
-        <p className="mt-2 text-sm text-muted">
-          The always-on Sentinel runs from the repo with this wallet's testnet key and these rules, guarding <span className="num text-fg">{shortAddress(address)}</span> even when this tab is closed.
+        {invalid && <p className="mt-2 text-sm text-danger">The close line has to sit below the trim line.</p>}
+      </div>
+      <div className="border-t border-border p-4 sm:p-5">
+        <p className="font-display text-lg font-bold uppercase">Keep it running 24/7</p>
+        <p className="mt-1 text-sm text-fg/80">
+          This page only acts when you click. To have ApexPerp watch <span className="num text-fg">{shortAddress(address)}</span> around the clock, run the bot from the repo with these settings:
         </p>
-        <div className="mt-3 flex items-start gap-1 rounded-lg bg-surface-2 p-2">
-          <pre className="num min-w-0 flex-1 overflow-x-auto whitespace-pre px-1 py-1.5 text-xs leading-relaxed text-fg">{command}</pre>
-          <CopyButton text={command} label="Copy command" />
+        <div className="mt-3 flex items-start border border-border bg-bg">
+          <pre className="num min-w-0 flex-1 overflow-x-auto whitespace-pre p-3 text-xs leading-relaxed">{command}</pre>
+          <CopyButton text={command} label="Copy settings" />
         </div>
-        <ExternalA href={`${REPO_URL}#run-the-sentinel-live-on-somnia-tokyo-testnet`} className="mt-3 text-sm text-accent">
+        <ExternalA href={`${REPO_URL}#run-the-sentinel-live-on-somnia-tokyo-testnet`} className="mt-3 text-sm text-accent-ink">
           Setup guide
         </ExternalA>
       </div>
@@ -352,29 +347,26 @@ function SentinelCard({ address, t, setT }: { address: Address; t: Thresholds; s
 function ActivityCard({ address }: { address: Address }) {
   const fills = useFills(address);
   return (
-    <section className="card p-5 sm:p-6" aria-labelledby="activity-title">
-      <div className="flex items-center gap-2">
-        <Activity className="h-4 w-4 text-accent" aria-hidden="true" />
-        <h2 id="activity-title" className="label">Recent fills</h2>
-      </div>
+    <section className="card" aria-labelledby="activity-title">
+      <PanelHead id="activity-title" label="Recent trades" />
       {fills.error && !fills.data && (
-        <div className="mt-4">
-          <ErrorNote message="Could not load fills from the indexer." onRetry={fills.retry} />
+        <div className="p-4 sm:p-5">
+          <ErrorNote message="Couldn't load trades right now." onRetry={fills.retry} />
         </div>
       )}
       {!fills.data && !fills.error && (
-        <div className="mt-4 space-y-2">
-          <Skeleton className="h-12 w-full" />
-          <Skeleton className="h-12 w-full" />
-          <Skeleton className="h-12 w-full" />
+        <div className="space-y-2 p-4 sm:p-5">
+          <Skeleton className="h-10 w-full" />
+          <Skeleton className="h-10 w-full" />
+          <Skeleton className="h-10 w-full" />
         </div>
       )}
-      {fills.data && fills.data.length === 0 && <p className="mt-4 text-sm text-muted">No perp fills yet for this address.</p>}
+      {fills.data && fills.data.length === 0 && <p className="p-4 text-sm text-muted sm:p-5">No perp trades on this address yet.</p>}
       {fills.data && fills.data.length > 0 && (
-        <ul className="mt-3 divide-y divide-border">
+        <ul>
           {fills.data.slice(0, 8).map((f) => (
-            <li key={f.id} className="flex items-center gap-3 py-2.5">
-              <span className={`w-10 text-xs font-semibold uppercase ${f.side === 'buy' ? 'text-safe' : 'text-danger'}`}>{f.side}</span>
+            <li key={f.id} className="flex items-center gap-3 border-b border-border py-2 pl-4 pr-1 last:border-b-0 sm:pl-5">
+              <span className={`num w-9 text-xs font-semibold uppercase ${f.side === 'buy' ? 'text-safe' : 'text-danger'}`}>{f.side}</span>
               <div className="min-w-0 flex-1">
                 <p className="num truncate text-sm">
                   {fmtQty(f.quantity)} {f.market.replace('-PERP', '')} @ {fmtPrice(f.price)}
@@ -398,19 +390,17 @@ function ActivityCard({ address }: { address: Address }) {
 function MarketsCard() {
   const markets = useMarkets();
   return (
-    <section className="card overflow-hidden" aria-labelledby="markets-title">
-      <div className="p-5 pb-3 sm:px-6">
-        <h2 id="markets-title" className="label">Markets</h2>
-      </div>
+    <section className="card" aria-labelledby="markets-title">
+      <PanelHead id="markets-title" label="All markets" />
       {markets.error && !markets.data && (
-        <div className="px-5 pb-5 sm:px-6">
-          <ErrorNote message="Could not load markets." onRetry={markets.retry} />
+        <div className="p-4 sm:p-5">
+          <ErrorNote message="Couldn't load markets right now." onRetry={markets.retry} />
         </div>
       )}
       {!markets.data && !markets.error && (
-        <div className="space-y-2 px-5 pb-5 sm:px-6">
+        <div className="space-y-px">
           {Array.from({ length: 5 }, (_, i) => (
-            <Skeleton key={i} className="h-8 w-full" />
+            <Skeleton key={i} className="h-10 w-full" />
           ))}
         </div>
       )}
@@ -418,24 +408,24 @@ function MarketsCard() {
         <div className="overflow-x-auto">
           <table className="w-full min-w-[520px] text-sm">
             <thead>
-              <tr className="border-y border-border text-left text-xs text-muted">
-                <th scope="col" className="px-5 py-2 font-medium sm:px-6">Market</th>
-                <th scope="col" className="px-3 py-2 text-right font-medium">Mark</th>
-                <th scope="col" className="px-3 py-2 text-right font-medium">Funding APR</th>
-                <th scope="col" className="px-3 py-2 text-right font-medium">Open interest</th>
-                <th scope="col" className="px-5 py-2 text-right font-medium sm:px-6">Max lev</th>
+              <tr className="border-b border-border text-left text-xs text-muted">
+                <th scope="col" className="px-4 py-2 font-normal sm:px-5">Market</th>
+                <th scope="col" className="px-3 py-2 text-right font-normal">Price</th>
+                <th scope="col" className="px-3 py-2 text-right font-normal">Funding / yr</th>
+                <th scope="col" className="px-3 py-2 text-right font-normal">Open interest</th>
+                <th scope="col" className="px-4 py-2 text-right font-normal sm:px-5">Max leverage</th>
               </tr>
             </thead>
-            <tbody className="num divide-y divide-border">
+            <tbody className="num">
               {markets.data.map((m) => (
-                <tr key={m.pool} className="hover:bg-surface-2/60">
-                  <th scope="row" className="px-5 py-2.5 text-left font-sans font-semibold sm:px-6">{m.name}</th>
+                <tr key={m.pool} className="border-b border-border last:border-b-0 hover:bg-surface-2">
+                  <th scope="row" className="px-4 py-2.5 text-left font-display font-bold uppercase sm:px-5">{m.name}</th>
                   <td className="px-3 py-2.5 text-right">{m.mark ? fmtPrice(m.mark) : '—'}</td>
                   <td className={`px-3 py-2.5 text-right ${m.fundingApr === null ? '' : m.fundingApr >= 0 ? 'text-safe' : 'text-danger'}`}>
                     {m.fundingApr === null ? '—' : fmtPct(m.fundingApr, { sign: true })}
                   </td>
                   <td className="px-3 py-2.5 text-right">{m.openInterestUsd === null ? '—' : fmtUsd(m.openInterestUsd)}</td>
-                  <td className="px-5 py-2.5 text-right text-muted sm:px-6">{m.maxLeverage ? `${m.maxLeverage}x` : '—'}</td>
+                  <td className="px-4 py-2.5 text-right text-muted sm:px-5">{m.maxLeverage ? `${m.maxLeverage}x` : '—'}</td>
                 </tr>
               ))}
             </tbody>
@@ -457,23 +447,23 @@ export function Dashboard({ watched, onWatch }: { watched: Address | null; onWat
   const account = useAccount(address, t);
 
   return (
-    <main className="mx-auto max-w-6xl px-4 py-8">
+    <main className="mx-auto max-w-6xl px-4 py-6 sm:py-8">
       {!address ? (
-        <>
+        <div className="space-y-4">
           <ConnectPrompt onWatch={onWatch} />
           <MarketsCard />
-        </>
+        </div>
       ) : (
         <>
-          <div className="mb-6 flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
+          <div className="mb-4 flex flex-col justify-between gap-4 border-b border-border pb-4 sm:flex-row sm:items-end">
             <div>
-              <p className="label">{isOwn ? 'Your account' : 'Watching'}</p>
+              <p className="label">{isOwn ? 'Your account' : 'Looking at'}</p>
               <div className="mt-1 flex items-center gap-1">
-                <h1 className="num text-xl font-semibold">{shortAddress(address)}</h1>
+                <h1 className="num text-2xl font-semibold">{shortAddress(address)}</h1>
                 <CopyButton text={address} label="Copy address" />
                 {watched && (
-                  <button type="button" className="btn-ghost min-h-10 px-3 text-xs" onClick={() => onWatch(null)}>
-                    {wallet.address ? 'Back to my wallet' : 'Stop watching'}
+                  <button type="button" className="btn-ghost min-h-10 px-2 text-xs" onClick={() => onWatch(null)}>
+                    {wallet.address ? 'Back to my wallet' : 'Clear'}
                   </button>
                 )}
               </div>

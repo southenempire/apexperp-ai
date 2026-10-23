@@ -53,8 +53,8 @@ async function ensureChain(provider: EIP1193Provider) {
 }
 
 function describe(err: any): string {
-  if (err?.code === 4001) return 'Request rejected in wallet.';
-  return err?.shortMessage ?? err?.message ?? 'Wallet error.';
+  if (err?.code === 4001) return 'You cancelled it in your wallet.';
+  return err?.shortMessage ?? err?.message ?? 'Your wallet ran into a problem.';
 }
 
 export function WalletProvider({ children }: { children: ReactNode }) {
@@ -104,7 +104,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
 
   const connect = useCallback(async () => {
     if (!provider) {
-      setError('No browser wallet found. Install MetaMask or Rabby.');
+      setError("We couldn't find a browser wallet. Install MetaMask or Rabby and try again.");
       return null;
     }
     setConnecting(true);

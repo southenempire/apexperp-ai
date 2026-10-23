@@ -2,20 +2,42 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Design tokens (RGB channels so Tailwind opacity modifiers work). Dark-first trading UI. */
-:root {
+/* Breaker-panel tokens (RGB channels so Tailwind opacity modifiers work).
+   Dark is the default; light applies when chosen, or when the system prefers it and nothing is chosen. */
+:root,
+:root[data-theme='dark'] {
   color-scheme: dark;
-  --bg: 8 10 15;
-  --surface: 14 17 25;
-  --surface-2: 20 24 35;
-  --border: 34 40 56;
-  --fg: 236 239 245;
-  --muted: 148 156 176;
-  --accent: 132 116 255;
-  --accent-fg: 255 255 255;
-  --safe: 52 211 153;
-  --warn: 251 191 36;
-  --danger: 248 113 113;
+  --bg: 10 10 9;
+  --surface: 17 17 15;
+  --surface-2: 26 26 23;
+  --border: 52 51 46;
+  --fg: 242 239 230;
+  --muted: 150 146 133;
+  --accent: 255 212 0;
+  /* Accent used as text, links and focus rings; on light paper yellow is unreadable. */
+  --accent-ink: 255 212 0;
+  --accent-fg: 10 10 9;
+  --stripe: 10 10 9;
+  --safe: 96 220 120;
+  --warn: 255 212 0;
+  --danger: 255 69 51;
+}
+
+:root[data-theme='light'] {
+  color-scheme: light;
+  --bg: 240 237 227;
+  --surface: 250 248 241;
+  --surface-2: 228 224 211;
+  --border: 190 185 170;
+  --fg: 17 17 15;
+  --muted: 96 92 82;
+  --accent: 255 212 0;
+  --accent-ink: 133 96 0;
+  --accent-fg: 10 10 9;
+  --stripe: 17 17 15;
+  --safe: 20 128 58;
+  --warn: 166 112 0;
+  --danger: 200 38 22;
 }
 
 @layer base {
@@ -35,50 +57,101 @@
     }
   }
   body {
-    @apply bg-bg text-fg font-sans antialiased;
+    @apply bg-bg font-sans text-fg antialiased;
   }
   ::selection {
-    background: rgb(var(--accent) / 0.35);
+    background: rgb(var(--accent));
+    color: rgb(var(--accent-fg));
   }
 }
 
 @layer components {
+  /* A bolted panel: hard rule, no shadow, no radius. */
   .card {
-    @apply rounded-2xl border border-border bg-surface;
+    @apply border border-border bg-surface;
   }
   .btn {
-    @apply inline-flex min-h-10 items-center justify-center gap-2 rounded-xl px-4 text-sm font-semibold transition-colors
-      focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-bg
-      disabled:cursor-not-allowed disabled:opacity-50;
+    @apply inline-flex min-h-10 items-center justify-center gap-2 px-4 font-display text-sm font-bold uppercase tracking-wide transition-colors
+      focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-ink focus-visible:ring-offset-2 focus-visible:ring-offset-bg
+      disabled:cursor-not-allowed disabled:opacity-40;
   }
   .btn-primary {
-    @apply btn bg-accent text-accent-fg hover:bg-accent/90;
+    @apply btn bg-accent text-accent-fg hover:bg-accent/80;
   }
   .btn-secondary {
-    @apply btn border border-border bg-surface-2 text-fg hover:border-muted/40;
+    @apply btn border border-fg/70 text-fg hover:border-accent-ink hover:text-accent-ink;
   }
   .btn-ghost {
-    @apply btn text-muted hover:bg-surface-2 hover:text-fg;
+    @apply btn text-muted hover:text-fg;
   }
+  .btn-danger {
+    @apply btn border border-danger text-danger hover:bg-danger hover:text-bg;
+  }
+  /* Panel tag: small stencilled label. */
   .label {
-    @apply text-xs font-medium uppercase tracking-wider text-muted;
+    @apply font-display text-xs font-bold uppercase tracking-[0.14em] text-muted;
+  }
+  .tag {
+    @apply inline-flex items-center gap-1.5 bg-accent px-2 py-0.5 font-display text-xs font-bold uppercase tracking-[0.12em] text-accent-fg;
   }
   .num {
     @apply font-mono tabular-nums;
   }
+  .display {
+    @apply font-display font-bold uppercase leading-[0.92] tracking-tight;
+  }
 }
 
-.bg-grid {
-  background-image: linear-gradient(rgb(var(--border) / 0.35) 1px, transparent 1px),
-    linear-gradient(90deg, rgb(var(--border) / 0.35) 1px, transparent 1px);
-  background-size: 48px 48px;
-  mask-image: radial-gradient(ellipse at top, black 20%, transparent 70%);
+/* Safety stripes for anything past the point of no return. */
+.hazard {
+  background-image: repeating-linear-gradient(-45deg, rgb(var(--danger)) 0 6px, rgb(var(--bg)) 6px 12px);
+}
+.hazard-yellow {
+  background-image: repeating-linear-gradient(-45deg, rgb(var(--accent)) 0 10px, rgb(var(--stripe)) 10px 20px);
 }
 
-@keyframes live-dot {
+@keyframes lamp {
   0%, 100% { opacity: 1; }
-  50% { opacity: 0.35; }
+  50% { opacity: 0.3; }
 }
 .live-dot {
-  animation: live-dot 2s ease-in-out infinite;
+  animation: lamp 1.6s steps(2, jump-none) infinite;
+}
+
+/* Range input styled as a heavy fader. */
+.fader {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 40px;
+  background: transparent;
+  cursor: grab;
+}
+.fader:focus-visible {
+  outline: 2px solid rgb(var(--accent-ink));
+  outline-offset: 2px;
+}
+.fader::-webkit-slider-runnable-track {
+  height: 4px;
+  background: rgb(var(--border));
+}
+.fader::-moz-range-track {
+  height: 4px;
+  background: rgb(var(--border));
+}
+.fader::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 18px;
+  height: 36px;
+  margin-top: -16px;
+  background: rgb(var(--fg));
+  border: 3px solid rgb(var(--bg));
+  outline: 1px solid rgb(var(--fg));
+}
+.fader::-moz-range-thumb {
+  width: 14px;
+  height: 32px;
+  background: rgb(var(--fg));
+  border: 3px solid rgb(var(--bg));
+  border-radius: 0;
 }

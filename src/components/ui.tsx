@@ -1,15 +1,15 @@
 import { createContext, useCallback, useContext, useState, type ReactNode } from 'react';
-import { CheckCircle2, Copy, ExternalLink, XCircle, Loader2 } from 'lucide-react';
+import { Check, Copy, ExternalLink, X, Loader2 } from 'lucide-react';
 
 export function Logo({ className = '' }: { className?: string }) {
   return (
-    <span className={`inline-flex items-center gap-2 font-bold tracking-tight ${className}`}>
-      <svg viewBox="0 0 32 32" className="h-7 w-7" aria-hidden="true">
-        <rect width="32" height="32" rx="8" className="fill-accent" />
-        <path d="M16 6l8 3v6c0 5-3.4 9.2-8 11-4.6-1.8-8-6-8-11V9z" fill="white" />
-        <path d="M12.5 15.5l2.5 2.5 4.5-5" stroke="rgb(var(--accent))" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round" />
-      </svg>
-      ApexPerp
+    <span className={`inline-flex items-center gap-2 ${className}`}>
+      <span className="flex h-7 w-7 items-center justify-center bg-accent" aria-hidden="true">
+        <svg viewBox="0 0 16 16" className="h-4 w-4">
+          <path d="M9 1L3 9h4l-1 6 6-8H8z" fill="rgb(var(--accent-fg))" />
+        </svg>
+      </span>
+      <span className="font-display text-lg font-bold uppercase tracking-wide">ApexPerp</span>
     </span>
   );
 }
@@ -20,16 +20,16 @@ export function LiveDot({ tone = 'safe' }: { tone?: 'safe' | 'warn' | 'danger' }
 }
 
 export function Skeleton({ className = '' }: { className?: string }) {
-  return <span className={`block animate-pulse rounded-md bg-surface-2 ${className}`} aria-hidden="true" />;
+  return <span className={`block animate-pulse bg-surface-2 ${className}`} aria-hidden="true" />;
 }
 
 export function ErrorNote({ message, onRetry }: { message: string; onRetry?: () => void }) {
   return (
-    <div role="alert" className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-danger/30 bg-danger/10 px-4 py-3 text-sm text-danger">
+    <div role="alert" className="flex flex-wrap items-center justify-between gap-3 border-l-4 border-danger bg-danger/10 px-4 py-3 text-sm">
       <span>{message}</span>
       {onRetry && (
         <button type="button" className="btn-secondary min-h-9 px-3 text-xs" onClick={onRetry}>
-          Retry
+          Try again
         </button>
       )}
     </div>
@@ -43,7 +43,7 @@ export function CopyButton({ text, label }: { text: string; label: string }) {
       type="button"
       aria-label={copied ? 'Copied' : label}
       title={copied ? 'Copied' : label}
-      className="inline-flex h-10 w-10 items-center justify-center rounded-lg text-muted hover:bg-surface-2 hover:text-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+      className="inline-flex h-10 w-10 shrink-0 items-center justify-center text-muted hover:text-accent-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-ink"
       onClick={() => {
         navigator.clipboard?.writeText(text).then(() => {
           setCopied(true);
@@ -51,17 +51,29 @@ export function CopyButton({ text, label }: { text: string; label: string }) {
         });
       }}
     >
-      {copied ? <CheckCircle2 className="h-4 w-4 text-safe" aria-hidden="true" /> : <Copy className="h-4 w-4" aria-hidden="true" />}
+      {copied ? <Check className="h-4 w-4 text-safe" aria-hidden="true" /> : <Copy className="h-4 w-4" aria-hidden="true" />}
     </button>
   );
 }
 
 export function ExternalA({ href, children, className = '' }: { href: string; children: ReactNode; className?: string }) {
   return (
-    <a href={href} target="_blank" rel="noreferrer" className={`inline-flex items-center gap-1 underline-offset-4 hover:underline ${className}`}>
+    <a href={href} target="_blank" rel="noreferrer" className={`inline-flex items-center gap-1 underline decoration-1 underline-offset-4 hover:text-accent-ink ${className}`}>
       {children}
       <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
     </a>
+  );
+}
+
+/** Panel header bar: stencilled label on the left, optional slot on the right. */
+export function PanelHead({ id, label, children }: { id?: string; label: string; children?: ReactNode }) {
+  return (
+    <div className="flex min-h-11 items-center justify-between gap-3 border-b border-border px-4 sm:px-5">
+      <h2 id={id} className="label">
+        {label}
+      </h2>
+      {children}
+    </div>
   );
 }
 
@@ -95,22 +107,21 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     schedule({ ...t, id });
   }, [schedule]);
 
+  const edge = { pending: 'border-l-accent', success: 'border-l-safe', error: 'border-l-danger' };
   return (
     <ToastContext.Provider value={{ push, update }}>
       {children}
       <div className="pointer-events-none fixed inset-x-4 bottom-4 z-50 flex flex-col items-end gap-2 sm:inset-x-auto sm:right-4" aria-live="polite">
         {toasts.map((t) => (
-          <div key={t.id} className="pointer-events-auto flex w-full max-w-sm items-start gap-3 rounded-xl border border-border bg-surface-2 p-3 shadow-2xl shadow-black/40">
-            {t.tone === 'pending' && <Loader2 className="mt-0.5 h-5 w-5 shrink-0 animate-spin text-accent" aria-hidden="true" />}
-            {t.tone === 'success' && <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-safe" aria-hidden="true" />}
-            {t.tone === 'error' && <XCircle className="mt-0.5 h-5 w-5 shrink-0 text-danger" aria-hidden="true" />}
+          <div key={t.id} className={`pointer-events-auto flex w-full max-w-sm items-start gap-3 border border-border border-l-4 bg-surface-2 p-3 ${edge[t.tone]}`}>
+            {t.tone === 'pending' && <Loader2 className="mt-0.5 h-5 w-5 shrink-0 animate-spin text-accent-ink" aria-hidden="true" />}
             <div className="min-w-0 flex-1">
               <p className="text-sm font-semibold">{t.title}</p>
-              {t.detail && <p className="mt-0.5 break-all text-xs text-muted">{t.detail}</p>}
+              {t.detail && <p className="num mt-0.5 break-all text-xs text-muted">{t.detail}</p>}
             </div>
             {t.copy && <CopyButton text={t.copy} label="Copy transaction hash" />}
-            <button type="button" aria-label="Dismiss" className="h-10 w-10 shrink-0 rounded-lg text-muted hover:bg-surface hover:text-fg" onClick={() => dismiss(t.id)}>
-              ×
+            <button type="button" aria-label="Dismiss" className="flex h-10 w-10 shrink-0 items-center justify-center text-muted hover:text-fg" onClick={() => dismiss(t.id)}>
+              <X className="h-4 w-4" aria-hidden="true" />
             </button>
           </div>
         ))}
