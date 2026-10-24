@@ -36,6 +36,8 @@ NotConfiguredError: @somnia-chain/markets-sdk: a perp stop order — needs opera
 ```
 `SOMNIA_HIDEKI_TESTNET_ADDRESSES.operatorPermissionsRegistry` is `undefined`. The registry exists: `client.getOperatorPermissionsRegistry(ethPool)` returns `0x6B2FbfeD328FF5F20C0BE7D3C3437613aFFE8D3a`, and passing that explicitly makes the same call succeed.
 
+The official dreamdex-bot-kit carries its own hardcoded copy of this address for Hideki (`packages/perp-core`, see `tests/trading-key.test.ts`) instead of reading it from the SDK preset, which is the same gap seen from the other side.
+
 Every TP/SL, stop-loss and liquidation-guard app on Tokyo hits this on its first stop. Suggested fix: add `operatorPermissionsRegistry: "0x6B2FbfeD328FF5F20C0BE7D3C3437613aFFE8D3a"` to the Hideki preset, or fall back to `getOperatorPermissionsRegistry(pool)` when the config has none.
 
 ## Evidence
@@ -50,4 +52,4 @@ Output of `npm run feedback:repro`:
 Workaround used in production code: `agent/protection.ts` (`stopContext`).
 
 ## Environment
-@somnia-chain/markets-sdk 0.32.1, Node v25.2.1, Somnia Tokyo testnet (Hideki, chain 50383). Read-only repro, no wallet needed.
+@somnia-chain/markets-sdk 0.32.1, Node v25.2.1, Somnia Tokyo testnet (Hideki, chain 50383). Reporter wallet: 0xA43C17c299148fb394c95572211b88c2365954dC (Somnia Account). The repro itself is read-only and uses no wallet.

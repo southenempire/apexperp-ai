@@ -67,6 +67,11 @@ async function main() {
   console.log('  client.getReducingCapacity:', typeof client.getReducingCapacity);
   console.log('  trader.placePerpOrder exists:', typeof trader.placePerpOrder, '(PlacePerpOrderParams has no reduceOnly field)');
 
+  console.log('\n[06] No perp ...For writes in the SDK, and no REDUCE_ORDER_FOR selector');
+  const sdk = (await import('@somnia-chain/markets-sdk')) as unknown as Record<string, unknown>;
+  console.log('  trader methods ending in "For":', Object.keys(trader).filter((k) => /For$/.test(k)));
+  for (const name of ['PLACE_ORDER_FOR_SELECTOR', 'CANCEL_ORDER_FOR_SELECTOR', 'REDUCE_ORDER_FOR_SELECTOR']) console.log(`  ${name}:`, sdk[name]);
+
   process.exit(0);
 }
 
