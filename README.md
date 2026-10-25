@@ -20,11 +20,13 @@
 
 Perps traders lose whole positions to liquidation because a wick hits while they're asleep, busy, or just not watching. ApexPerp fixes that in three layers:
 
-1. **See how close you are.** Connect a wallet (or paste any address) and get your real account health from the dreamDEX MarginBank: equity over the maintenance margin you must keep. For every position you see the exact mark price where it would get trimmed, closed, or liquidated.
+1. **See how close you are.** Connect a wallet (or paste any address) and get your real account health from the dreamDEX MarginBank: equity over the maintenance margin you must keep. For every position you see the exact mark price where it would get trimmed, closed, or liquidated. It works with dreamDEX **Somnia Accounts**: connect the wallet that owns yours and ApexPerp trades through the account.
 2. **Protect it on-chain, in one click.** ApexPerp places two reduce-only stop orders per position on dreamDEX's `PerpStopOrderRegistry`: one that sells 25% at the trim price, one that closes everything at the close price. **Somnia Reactivity** fires them when the mark crosses the line. No bot, no server, no key handed over, and they keep working with your laptop shut.
-3. **Or run the Sentinel.** An always-on agent that watches whole-account health every second and sends reduce-only market orders below your thresholds, for traders who want account-level logic on top of per-position stops.
+3. **Optionally, run the Sentinel.** A small agent that watches whole-account health every second and sends reduce-only market orders below your thresholds. It applies the same rule as `perp-guard` in dreamDEX's bot kit (see below), so treat it as the optional extra.
 
 Everything it sends can only shrink a position. It never opens or flips one.
+
+**Setup scanner (`#/scan`).** Lists the Turtle Soup and CRT setups that just formed across all 21 markets (15m, 1h and 4h candles), with entry, stop, target and reward over risk, and can ping you in the browser when a new one forms. Each setup type carries an **edge check**: every setup is replayed on the candles after it and compared with random entries that share its direction and stop and target distances, so it says plainly whether the setup beat chance. On about 33 days of 1h candles neither does, and the page says so. Session and reward-over-risk filters recalculate the check, so you can test your own version of a setup.
 
 ## Who it's for
 
@@ -32,9 +34,16 @@ Everything it sends can only shrink a position. It never opens or flips one.
 - **Perps Arena players**, where getting liquidated knocks you off the board.
 - **Bot builders**, who get a tested, reusable reduce-only and stop-order layer (`agent/`).
 
+## How this fits with dreamDEX's own tools
+
+- **The bot kit's [`perp-guard`](https://github.com/somnia-chain/dreamdex-bot-kit/tree/main/strategies/perp-guard)** trims on the same health ratio, from a bot that has to keep running. ApexPerp's Sentinel is the same idea and doesn't claim to improve on it.
+- **A linked bot key can't arm stops** for your account (per dreamDEX's [Link a bot](https://app.testnet.dreamdex.io/docs/trading/common/link-a-bot) page); only the account can. So a bot only protects you while it's running.
+- **ApexPerp arms the stops from the account**, so the exchange holds them and Somnia Reactivity fires them with nothing running. And instead of asking you to type a price, it **solves it from your account's health**: the mark where the cross-margin account hits your trim line and your close line, for each position.
+- **The app's own TP/SL** lets you set a price by hand. ApexPerp picks the prices that match your margin, arms the trim and close pair in one click, and shows every position's trim, close and liquidation prices before you do.
+
 ## Proof it works
 
-Every transaction ApexPerp sends is logged with its hash, block and status in [PROOF.md](PROOF.md). Hideki has no public explorer, so check any hash with `eth_getTransactionReceipt` against `https://api.hideki2.infra.testnet.somnia.network`.
+Every transaction ApexPerp sends is logged with its hash, block and status in [PROOF.md](PROOF.md). Every hash links to the [Somnia Tokyo explorer](https://explorer.testnet.somnia.network/tokyo).
 
 ## Run it
 
@@ -47,7 +56,16 @@ npm install
 npm run dev            # the dapp on http://localhost:3000
 ```
 
-Command line, with a funded Somnia Tokyo testnet wallet (join the Perps Arena on [dreamDEX](https://app.testnet.dreamdex.io) for paper USDso):
+**Somnia Account (the default dreamDEX account).** The dapp trades through it with the browser wallet that owns it. To run the Sentinel for it, use a **linked bot key**, which can place orders for your account but can never withdraw:
+
+```bash
+npm run botkey -- 0xYourDreamDexAccount   # makes a new bot key, saves it to .env, prints its address
+# in the dreamDEX app: wallet, Link a bot, tick Perps, paste the bot address, Add bot (and give it a little STT for gas)
+npm run doctor                            # confirms the link and the gas
+DRY_RUN=1 npm run agent:live              # watch it decide; drop DRY_RUN to let it trim
+```
+
+**Plain wallet account**, with a funded Somnia Tokyo testnet wallet (join the Perps Arena on [dreamDEX](https://app.testnet.dreamdex.io) for paper USDso). Use a **testnet-only key**, never one that holds real funds:
 
 ```bash
 cp .env.example .env              # set PRIVATE_KEY
@@ -55,7 +73,7 @@ npm run doctor                    # checks RPC, indexer, mark prices and your wa
 npm run open -- ETH long 0.01     # open a test position
 npm run protect                   # arm on-chain trim + close stops for every position
 npm run protect -- --list         # see your stops (--cancel removes them, fees refunded)
-npm run agent:live                # run the Sentinel (DRY_RUN=1 to log without sending)
+npm run agent:live                # run the Sentinel (DRY_RUN=1 to log without sending, ONCE=1 to stop after one action)
 ```
 
 | Setting | Default | Meaning |
@@ -71,11 +89,15 @@ npm run agent:live                # run the Sentinel (DRY_RUN=1 to log without s
 src/                     React dapp (Vite + Tailwind)
   pages/Landing.tsx      landing page with the drag-the-price breaker demo
   pages/Dashboard.tsx    health, positions, on-chain stops, trades, markets
+  pages/Scanner.tsx      setup scanner with the edge check
   lib/wallet.tsx         injected wallet, switches/adds Somnia Tokyo, binds the SDK signer
   lib/hooks.ts           live reads from the chain and indexer
+  lib/scan.ts            candle history for every perp market
 agent/                   shared trading logic (used by the dapp and the CLI)
   protection.ts          trigger-price solve, stop planning, arm / list / cancel stops
   sentinel.ts            health ratio, decisions, reduce-only sizing (pure, unit-tested)
+  linked.ts              linked-bot mode: placeOrderFor for a Somnia Account
+  setups.ts, edge.ts     Turtle Soup and CRT detectors, and the random-baseline edge check
   markets.ts             connection, market discovery, reduce-only order planning
   runner.ts              the always-on Sentinel
 scripts/                 doctor, open-position, protect, tests, brand assets
@@ -86,11 +108,11 @@ feedback/                SDK and docs reports for the feedback track, with a rep
 - **Stops** are placed with `trader.placePerpStopOrder` as reduce-only MARKET stops. The trim leg has a fixed size; the close leg uses quantity `0`, which the registry resolves to the whole position when it fires.
 - **Somnia primitives:** perp stops are triggered through Somnia Reactivity (prepaid per stop, refunded on cancel). Tokyo's 10 ms blocks make the Sentinel's one-second loop practical.
 
-Tests: `npm run test:sentinel` covers the health maths, decisions, reduce-only sizing, trigger-price solving, stop planning for longs and shorts, and telling stop-losses from take-profits.
+Tests: `npm test` runs two suites. `test:sentinel` covers the health maths, decisions, reduce-only sizing, trigger-price solving, stop planning for longs and shorts, telling stop-losses from take-profits, and the linked-bot selectors. `test:setups` covers the setup detectors, the trade rule, the filters, and that the edge check finds no edge on a random walk.
 
 ## Feedback track
 
-Five reproducible reports in [`feedback/`](feedback/), one per file in the bounty template. Reproduce all of them, read-only, with:
+Eight reproducible reports in [`feedback/`](feedback/), one per file in the bounty template. Reproduce all of them, read-only, with:
 
 ```bash
 npm run feedback:repro
@@ -103,6 +125,9 @@ npm run feedback:repro
 | 03 | normal | "unknown symbol" error says to call `loadMarkets()` after it already ran |
 | 04 | normal | README testnet setup connects to Shannon, not Tokyo where the perps are |
 | 05 | normal | No reduce-only option for perp orders and no SDK read for reducing capacity |
+| 06 | normal | No perp `placeOrderFor` / `cancelOrderFor` / `reduceOrderFor` writes, so linked bots can't use the SDK |
+| 07 | normal | SDK docs and `hidekiTestnet` say Hideki has no explorer, but dreamDEX documents one that works |
+| 08 | normal | Docs say paper USDso can't open six markets; the SDK reads and a simulated order allow them |
 
 ## X posts
 
