@@ -5,6 +5,7 @@
  *   npm run feedback:repro
  */
 
+import { encodeFunctionData, parseAbi } from 'viem';
 import { SomniaMarkets, SOMNIA_HIDEKI_TESTNET_ADDRESSES } from '@somnia-chain/markets-sdk';
 import { hidekiTestnet } from '@somnia-chain/markets-sdk/chains';
 
@@ -71,6 +72,35 @@ async function main() {
   const sdk = (await import('@somnia-chain/markets-sdk')) as unknown as Record<string, unknown>;
   console.log('  trader methods ending in "For":', Object.keys(trader).filter((k) => /For$/.test(k)));
   for (const name of ['PLACE_ORDER_FOR_SELECTOR', 'CANCEL_ORDER_FOR_SELECTOR', 'REDUCE_ORDER_FOR_SELECTOR']) console.log(`  ${name}:`, sdk[name]);
+
+  console.log('\n[07] SDK chain definition has no explorer, but dreamDEX documents one');
+  console.log('  hidekiTestnet.blockExplorers:', (hidekiTestnet as { blockExplorers?: unknown }).blockExplorers);
+  console.log('  explorer page for a real transaction: https://explorer.testnet.somnia.network/tokyo/tx/0x6079bcb93848bcae9ef717e61e2aae73c15ac6d201c68a4423481983c12d0435');
+
+  console.log('\n[08] Paper USDso allowlist: docs say six markets are blocked, what does the chain say?');
+  const REPORTER = '0xA43C17c299148fb394c95572211b88c2365954dC' as const; // holds the Arena voucher, no positions
+  const marginBank = SOMNIA_HIDEKI_TESTNET_ADDRESSES.marginBank as `0x${string}`;
+  const placeOrder = parseAbi(['function placeOrder(bool isBid, uint64 userData, uint256 price, uint256 quantity, uint64 expireTimestampNs, uint8 orderType, uint8 selfMatchingOption, address builder, uint96 builderFeeBpsTimes1k) payable returns (bool success, uint128 orderId)']);
+  const perps = await exchange.client.listPerpMarkets();
+  for (const sym of ['ETH', 'LIT', 'ZEC', 'ZRO', 'PUMP', 'VVV', '1000PEPE']) {
+    const m = perps.find((x) => x.baseSymbol === sym);
+    if (!m) continue;
+    const pool = m.poolAddress as `0x${string}`;
+    const tick = BigInt(m.tickSize);
+    const mark = (await exchange.client.getPerpState(pool)).markPrice;
+    const price = (((mark * 102n) / 100n) / tick) * tick;
+    const quantity = BigInt(m.minQuantity) * 2n;
+    const lev = (await exchange.client.getPerpLeverage({ marginBank, pool, account: REPORTER })) as { voucherMarketAllowed?: boolean };
+    const prev = (await exchange.client.previewPerpOrderMargin({ pool, marginBank, account: REPORTER, isBid: true, quantity, price })) as { voucherBlocked?: boolean };
+    const data = encodeFunctionData({ abi: placeOrder, functionName: 'placeOrder', args: [true, 0n, price, quantity, BigInt(Date.now() + 3_600_000) * 1_000_000n, 2, 0, '0x0000000000000000000000000000000000000000', 0n] });
+    let call = 'accepted';
+    try {
+      await exchange.client.getViemClient().call({ account: REPORTER, to: pool, data, gas: 10_000_000n });
+    } catch (e) {
+      call = `reverted (${(e as Error).message.split('\n')[0].slice(0, 60)})`;
+    }
+    console.log(`  ${(sym + '-PERP').padEnd(13)} voucherMarketAllowed: ${lev.voucherMarketAllowed}  voucherBlocked: ${prev.voucherBlocked}  eth_call: ${call}`);
+  }
 
   process.exit(0);
 }
