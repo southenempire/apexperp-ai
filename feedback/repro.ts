@@ -102,6 +102,31 @@ async function main() {
     console.log(`  ${(sym + '-PERP').padEnd(13)} voucherMarketAllowed: ${lev.voucherMarketAllowed}  voucherBlocked: ${prev.voucherBlocked}  eth_call: ${call}`);
   }
 
+  console.log('\n[09] Hideki block time: the SDK says 10 ms (~100 blocks/s), what does the chain do?');
+  const rpcClient = exchange.client.getViemClient();
+  console.log('  hidekiTestnet.blockTime (ms):', (hidekiTestnet as { blockTime?: number }).blockTime);
+  const b1 = await rpcClient.getBlockNumber();
+  const t1 = Date.now();
+  await new Promise((r) => setTimeout(r, 10_000));
+  const b2 = await rpcClient.getBlockNumber();
+  const secs = (Date.now() - t1) / 1000;
+  console.log(`  live: ${b2 - b1} blocks in ${secs.toFixed(1)} s = ${(Number(b2 - b1) / secs).toFixed(1)} blocks/s (about ${Math.round((secs * 1000) / Number(b2 - b1))} ms per block)`);
+  const [newer, older] = await Promise.all([rpcClient.getBlock({ blockNumber: b2 }), rpcClient.getBlock({ blockNumber: b2 - 20_000n })]);
+  console.log(`  history: 20,000 blocks span ${newer.timestamp - older.timestamp} s of block timestamps = ${(20_000 / Number(newer.timestamp - older.timestamp)).toFixed(1)} blocks/s`);
+
+  console.log('\n[10] eth_getLogs block range limit on the Hideki RPC');
+  const RPC = 'https://api.hideki2.infra.testnet.somnia.network';
+  const head = await rpcClient.getBlockNumber();
+  for (const range of [100n, 1000n, 1001n, 5000n]) {
+    const res = await fetch(RPC, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'eth_getLogs', params: [{ address: marginBank, fromBlock: '0x' + (head - range + 1n).toString(16), toBlock: '0x' + head.toString(16) }] }),
+    });
+    const j = (await res.json()) as { error?: { code: number; message: string }; result?: unknown[] };
+    console.log(`  last ${range} blocks (${(Number(range) / 10).toFixed(0)} s of chain time): ${j.error ? `error ${j.error.code}: ${j.error.message}` : `ok, ${j.result?.length} logs`}`);
+  }
+
   process.exit(0);
 }
 
