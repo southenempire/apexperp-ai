@@ -1,11 +1,11 @@
 /**
  * Append-only record of every transaction the agent sends, so each one can be
- * checked against the chain. Hideki has no public explorer: verify a hash with
- * `eth_getTransactionReceipt` on https://api.hideki2.infra.testnet.somnia.network.
+ * checked against the chain. Every hash links to the Somnia Tokyo explorer.
  */
 
 import { appendFileSync, existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
+import { explorerTx } from './explorer';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -23,6 +23,8 @@ export interface ProofEntry {
   block: string;
   status: string;
   healthBefore?: number;
+  /** The dreamDEX account the order belongs to (differs from the signer in linked-bot mode). */
+  account?: string;
   note?: string;
 }
 
@@ -37,7 +39,7 @@ export function recordProof(entry: ProofEntry): void {
         '# On-chain proof',
         '',
         'Every transaction ApexPerp sent on Somnia Tokyo testnet (Hideki, chain 50383), appended automatically.',
-        'Verify any hash with `eth_getTransactionReceipt` against `https://api.hideki2.infra.testnet.somnia.network`.',
+        'Every hash links to the [Somnia Tokyo explorer](https://explorer.testnet.somnia.network/tokyo).',
         '',
         '| Time (UTC) | Action | Market | Side | Qty | Limit | Health before | Block | Status | Tx hash |',
         '| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |',
@@ -48,6 +50,6 @@ export function recordProof(entry: ProofEntry): void {
   const health = entry.healthBefore === undefined ? '' : `${entry.healthBefore.toFixed(3)}x`;
   appendFileSync(
     MARKDOWN,
-    `| ${entry.timestamp} | ${entry.kind} | ${entry.market} | ${entry.side} | ${entry.quantity} | ${entry.limitPrice} | ${health} | ${entry.block} | ${entry.status} | \`${entry.txHash}\` |\n`,
+    `| ${entry.timestamp} | ${entry.kind} | ${entry.market} | ${entry.side} | ${entry.quantity} | ${entry.limitPrice} | ${health} | ${entry.block} | ${entry.status} | [${entry.txHash.slice(0, 10)}…${entry.txHash.slice(-6)}](${explorerTx(entry.txHash)}) |\n`,
   );
 }

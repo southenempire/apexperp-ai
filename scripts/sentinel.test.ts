@@ -106,3 +106,14 @@ test('only loss-side stops count as protection; take-profits are left alone', ()
   assert.equal(isProtective({ isBid: true, triggerOperator: 0 }, -1n), true); // short stop-loss
   assert.equal(isProtective({ isBid: true, triggerOperator: 1 }, -1n), false); // short take-profit
 });
+
+/* ---------- Linked-bot selectors ---------- */
+
+import { SDK_SELECTORS, SELECTORS } from '../agent/linked';
+
+test('linked-bot selectors derive from the signatures and match the SDK constants', () => {
+  assert.equal(SELECTORS.placeOrderFor, SDK_SELECTORS.placeOrderFor);
+  assert.equal(SELECTORS.cancelOrderFor, SDK_SELECTORS.cancelOrderFor);
+  // Not exported by the SDK, but the value the app's Link a bot flow grants (feedback/06).
+  assert.equal(SELECTORS.reduceOrderFor, '0x364c2587');
+});

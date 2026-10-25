@@ -2,7 +2,7 @@
  * Sentinel configuration, read from the environment (.env is loaded by `tsx --env-file`).
  */
 
-import type { Hex } from 'viem';
+import { isAddress, type Address, type Hex } from 'viem';
 
 function num(name: string, fallback: number): number {
   const raw = process.env[name];
@@ -13,7 +13,12 @@ function num(name: string, fallback: number): number {
 }
 
 export interface SentinelEnv {
+  /** The signing key. With OWNER_ADDRESS set it is a bot key linked to that account, not the account's own key. */
   privateKey: Hex;
+  /** The dreamDEX account to guard when the key is a linked bot (wallet -> Link a bot -> Perps in the app). */
+  ownerAddress?: Address;
+  /** Exit after the first protective action. Handy for a one-shot proof run. */
+  once: boolean;
   indexerUrl: string;
   wsRpcUrl: string;
   /** Trim positions when equity / maintenance margin falls to or below this. */
@@ -37,8 +42,13 @@ export function loadEnv(): SentinelEnv {
     throw new Error('PRIVATE_KEY must be set to a 0x-prefixed 32-byte hex key (see .env.example)');
   }
 
+  const owner = process.env.OWNER_ADDRESS;
+  if (owner && !isAddress(owner)) throw new Error('OWNER_ADDRESS must be a 0x address');
+
   const env: SentinelEnv = {
     privateKey: privateKey as Hex,
+    ownerAddress: owner ? (owner as Address) : undefined,
+    once: process.env.ONCE === '1' || process.env.ONCE === 'true',
     indexerUrl: process.env.INDEXER_URL || 'https://hideki-dev.smk.somnia.host/v1/graphql',
     wsRpcUrl: process.env.WS_RPC_URL || 'wss://api.hideki2.infra.testnet.somnia.network/ws',
     reduceBelowHealth: num('REDUCE_BELOW_HEALTH', 1.5),
