@@ -106,13 +106,13 @@ feedback/                SDK and docs reports for the feedback track, with a rep
 
 - **Trigger prices** solve `equity(p) = k × maintenance(p)` for each market by scaling the SDK's own `perpLiquidationPrice`, so they match the protocol's liquidation math exactly (k = 1 is liquidation).
 - **Stops** are placed with `trader.placePerpStopOrder` as reduce-only MARKET stops. The trim leg has a fixed size; the close leg uses quantity `0`, which the registry resolves to the whole position when it fires.
-- **Somnia primitives:** perp stops are triggered through Somnia Reactivity (prepaid per stop, refunded on cancel). Tokyo's 10 ms blocks make the Sentinel's one-second loop practical.
+- **Somnia primitives:** perp stops are triggered through Somnia Reactivity (prepaid per stop, refunded on cancel). Tokyo produces about ten blocks a second (measured: the SDK docs say 100, see feedback 09), so the Sentinel's one-second loop sees every few blocks.
 
 Tests: `npm test` runs two suites. `test:sentinel` covers the health maths, decisions, reduce-only sizing, trigger-price solving, stop planning for longs and shorts, telling stop-losses from take-profits, and the linked-bot selectors. `test:setups` covers the setup detectors, the trade rule, the filters, and that the edge check finds no edge on a random walk.
 
 ## Feedback track
 
-Eight reproducible reports in [`feedback/`](feedback/), one per file in the bounty template. Reproduce all of them, read-only, with:
+Ten reproducible reports in [`feedback/`](feedback/), one per file in the bounty template. Reproduce all of them, read-only, with:
 
 ```bash
 npm run feedback:repro
@@ -128,6 +128,8 @@ npm run feedback:repro
 | 06 | normal | No perp `placeOrderFor` / `cancelOrderFor` / `reduceOrderFor` writes, so linked bots can't use the SDK |
 | 07 | normal | SDK docs and `hidekiTestnet` say Hideki has no explorer, but dreamDEX documents one that works |
 | 08 | normal | Docs say paper USDso can't open six markets; the SDK reads and a simulated order allow them |
+| 09 | normal | The chain definition says Hideki has 10 ms blocks (~100/s); the chain makes about 10 blocks a second |
+| 10 | normal | `eth_getLogs` rejects ranges over 1,000 blocks (about 100 s), with a non-standard error and no mention in the docs |
 
 ## X posts
 
