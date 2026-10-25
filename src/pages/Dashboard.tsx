@@ -1,6 +1,9 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { ShieldCheck, ShieldOff, Wallet } from 'lucide-react';
 import { getAddress, isAddress, type Address } from 'viem';
+import { CandleChart, type ChartLine } from '../components/CandleChart';
+import { fetchCandles, TIMEFRAMES, type Timeframe } from '../lib/scan';
+import type { Candle } from '../../agent/setups';
 import { HealthMeter, ZONE_STYLE, zoneOf } from '../components/HealthMeter';
 import { CopyButton, ErrorNote, ExternalA, PanelHead, Skeleton, useToast } from '../components/ui';
 import { proofToMarkdown, recordDappProof, useProofLog } from '../lib/proofLog';
@@ -160,6 +163,64 @@ function HealthCard({ account, t }: { account: AccountQuery; t: Thresholds }) {
 }
 
 /* ---------- Positions ---------- */
+
+function PositionChart({ p }: { p: PositionView }) {
+  const [open, setOpen] = useState(false);
+  const [tf, setTf] = useState<Timeframe>('15m');
+  const [candles, setCandles] = useState<Candle[] | null>(null);
+  const [failed, setFailed] = useState(false);
+  const base = p.perp.name.replace('-PERP', '');
+
+  useEffect(() => {
+    if (!open) return;
+    let alive = true;
+    const load = () =>
+      fetchCandles(base, tf)
+        .then((c) => alive && (setCandles(c.slice(-120)), setFailed(false)))
+        .catch(() => alive && setFailed(true));
+    setCandles(null);
+    load();
+    const id = setInterval(load, 30_000);
+    return () => {
+      alive = false;
+      clearInterval(id);
+    };
+  }, [open, base, tf]);
+
+  const lines: ChartLine[] = [
+    { price: p.mark, label: 'NOW', tone: 'muted' },
+    { price: p.entry, label: 'ENTRY', tone: 'accent' },
+    ...(p.trimAt === null ? [] : [{ price: p.trimAt, label: 'TRIM', tone: 'warn' as const }]),
+    ...(p.flattenAt === null ? [] : [{ price: p.flattenAt, label: 'CLOSE', tone: 'danger' as const }]),
+    ...(p.liquidationAt === null ? [] : [{ price: p.liquidationAt, label: 'LIQUIDATED', tone: 'danger' as const }]),
+  ];
+
+  return (
+    <div className="sm:col-span-2">
+      <button type="button" className="text-xs font-semibold uppercase tracking-wide text-accent-ink underline underline-offset-4" aria-expanded={open} onClick={() => setOpen((o) => !o)}>
+        {open ? 'Hide chart' : `Show ${p.perp.name} chart with your lines`}
+      </button>
+      {open && (
+        <div className="mt-3">
+          <div className="mb-2 flex gap-1" role="group" aria-label="Chart timeframe">
+            {(Object.keys(TIMEFRAMES) as Timeframe[]).map((k) => (
+              <button key={k} type="button" aria-pressed={tf === k} onClick={() => setTf(k)} className={`num border px-2 py-1 text-xs ${tf === k ? 'border-accent bg-accent text-accent-fg' : 'border-border text-muted hover:text-fg'}`}>
+                {k}
+              </button>
+            ))}
+          </div>
+          {failed && !candles ? (
+            <p className="text-sm text-muted">Couldn't load candles from the indexer. It retries every 30 seconds.</p>
+          ) : candles ? (
+            <CandleChart candles={candles} lines={lines} label={`${p.perp.name} ${tf} candles with entry, trim, close and liquidation prices`} />
+          ) : (
+            <Skeleton className="h-[260px] w-full" />
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
 
 function StopsStrip({
   p,
@@ -427,6 +488,7 @@ function PositionsCard({ address, account, t, canTrade }: { address: Address; ac
                 {p.trimAt === null && p.flattenAt === null && p.liquidationAt === null && (
                   <p className="text-xs text-muted sm:col-span-2">Your equity covers this whole position, so this market alone can't trim, close or liquidate it.</p>
                 )}
+                <PositionChart p={p} />
                 <StopsStrip
                   p={p}
                   live={stops.data?.filter((s) => s.pool === p.perp.pool) ?? null}

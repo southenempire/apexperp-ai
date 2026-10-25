@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Bell, BellOff } from 'lucide-react';
 import { edgeCheck, MIN_SAMPLE, verdict, type EdgeStats, type Verdict } from '../../agent/edge';
 import { applyFilters, findSetups, SESSION_LABEL, SETUP_LABEL, type Filters, type Session, type Setup, type SetupKind } from '../../agent/setups';
+import { CandleChart } from '../components/CandleChart';
 import { CopyButton, ErrorNote, PanelHead, Skeleton } from '../components/ui';
 import { fmtPrice, timeAgo } from '../lib/format';
 import { TIMEFRAMES, useScanData, type Timeframe } from '../lib/scan';
@@ -119,6 +120,7 @@ const key = (s: LiveSetup, tf: string) => `${s.kind}:${s.market}:${tf}:${s.time}
 
 export function Scanner() {
   const [tf, setTf] = useState<Timeframe>('1h');
+  const [openKey, setOpenKey] = useState<string | null>(null);
   const [enabled, setEnabled] = useState<Record<SetupKind, boolean>>({ CRT: true, TURTLE_SOUP: true });
   const [session, setSession] = useState<Session>('ALL');
   const [minRR, setMinRR] = useState(0);
@@ -323,10 +325,20 @@ export function Scanner() {
                     </tr>
                   </thead>
                   <tbody className="num">
-                    {analysis.live.slice(0, 60).map((s) => (
-                      <tr key={key(s, tf)} className="border-b border-border last:border-b-0 hover:bg-surface-2">
+                    {analysis.live.slice(0, 60).map((s) => {
+                      const k = key(s, tf);
+                      const isOpen = openKey === k;
+                      const candles = isOpen ? data.markets.find((m) => m.name === s.market)?.candles ?? [] : [];
+                      const from = Math.max(0, Math.min(s.index - 36, candles.length - 48));
+                      return (
+                      <Fragment key={k}>
+                      <tr className="border-b border-border last:border-b-0 hover:bg-surface-2">
                         <td className="px-4 py-2.5 text-muted sm:px-5">{timeAgo(s.closeAt)}</td>
-                        <th scope="row" className="px-3 py-2.5 text-left font-display font-bold uppercase">{s.market}-PERP</th>
+                        <th scope="row" className="px-3 py-2.5 text-left font-display font-bold uppercase">
+                          <button type="button" className="uppercase underline decoration-border underline-offset-4 hover:decoration-accent" aria-expanded={isOpen} onClick={() => setOpenKey(isOpen ? null : k)}>
+                            {s.market}-PERP
+                          </button>
+                        </th>
                         <td className="px-3 py-2.5 font-sans">{SETUP_LABEL[s.kind]}</td>
                         <td className={`px-3 py-2.5 font-semibold ${s.long ? 'text-safe' : 'text-danger'}`}>{s.long ? 'Long' : 'Short'}</td>
                         <td className="px-3 py-2.5 text-right">{fmtPrice(s.entry)}</td>
@@ -340,7 +352,26 @@ export function Scanner() {
                           />
                         </td>
                       </tr>
-                    ))}
+                      {isOpen && (
+                        <tr className="border-b border-border bg-surface-2/40">
+                          <td colSpan={9} className="px-4 py-3 sm:px-5">
+                            <CandleChart
+                              candles={candles.slice(from, from + 48)}
+                              highlightT={s.time}
+                              zone={{ entry: s.entry, stop: s.stop, target: s.target }}
+                              lines={[
+                                { price: s.entry, label: 'ENTRY', tone: 'accent' },
+                                { price: s.stop, label: 'STOP', tone: 'danger' },
+                                { price: s.target, label: 'TARGET', tone: 'safe' },
+                              ]}
+                              label={`${s.market}-PERP ${tf} candles with the ${SETUP_LABEL[s.kind]} entry, stop and target`}
+                            />
+                          </td>
+                        </tr>
+                      )}
+                      </Fragment>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
