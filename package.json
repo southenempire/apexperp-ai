@@ -15,7 +15,9 @@
     "brand": "python3 scripts/brand.py .",
     "protect": "tsx --env-file-if-exists=.env scripts/protect.ts",
     "feedback:repro": "tsx feedback/repro.ts",
-    "botkey": "tsx scripts/botkey.ts"
+    "botkey": "tsx scripts/botkey.ts",
+    "test:setups": "tsx scripts/setups.test.ts",
+    "test": "npm run test:sentinel && npm run test:setups"
   },
   "dependencies": {
     "@somnia-chain/markets-sdk": "^0.32.1",

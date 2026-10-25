@@ -3,10 +3,12 @@ import { getAddress, isAddress, type Address } from 'viem';
 import { Nav } from './components/Nav';
 import { Dashboard } from './pages/Dashboard';
 import { Landing } from './pages/Landing';
+import { Scanner } from './pages/Scanner';
 import { getPerps } from './lib/hooks';
 
-/** Hash routes: `#/` landing, `#/app` dashboard, `#/app/0x…` a shareable watched address. */
-function parseHash(hash: string): { page: 'landing' | 'app'; watched: Address | null } {
+/** Hash routes: `#/` landing, `#/app` dashboard, `#/app/0x…` a shareable watched address, `#/scan` the setup scanner. */
+function parseHash(hash: string): { page: 'landing' | 'app' | 'scan'; watched: Address | null } {
+  if (/^#\/scan/.test(hash)) return { page: 'scan', watched: null };
   const m = hash.match(/^#\/app(?:\/(0x[0-9a-fA-F]{40}))?/);
   if (!m) return { page: 'landing', watched: null };
   return { page: 'app', watched: m[1] && isAddress(m[1]) ? getAddress(m[1]) : null };
@@ -42,7 +44,7 @@ export function App() {
   return (
     <div className="min-h-screen">
       <Nav variant={route.page} onLaunch={launch} />
-      {route.page === 'landing' ? <Landing onLaunch={launch} /> : <Dashboard watched={route.watched} onWatch={watch} />}
+      {route.page === 'landing' ? <Landing onLaunch={launch} /> : route.page === 'scan' ? <Scanner /> : <Dashboard watched={route.watched} onWatch={watch} />}
     </div>
   );
 }

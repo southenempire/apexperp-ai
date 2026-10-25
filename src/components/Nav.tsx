@@ -150,7 +150,12 @@ export function WalletButton({ onConnected }: { onConnected?: () => void }) {
   );
 }
 
-export function Nav({ variant, onLaunch }: { variant: 'landing' | 'app'; onLaunch: () => void }) {
+const PAGE_LINKS = [
+  { variant: 'app', href: '#/app', label: 'My account' },
+  { variant: 'scan', href: '#/scan', label: 'Scanner' },
+] as const;
+
+export function Nav({ variant, onLaunch }: { variant: 'landing' | 'app' | 'scan'; onLaunch: () => void }) {
   return (
     <header className="sticky top-0 z-30 border-b border-border bg-bg">
       <div className="mx-auto flex h-16 max-w-6xl items-center justify-between gap-3 px-4">
@@ -163,6 +168,7 @@ export function Nav({ variant, onLaunch }: { variant: 'landing' | 'app'; onLaunc
               <a className="btn-ghost" href="#how">How it works</a>
               <a className="btn-ghost" href="#rules">The rules</a>
               <a className="btn-ghost" href="#proof">Proof</a>
+              <a className="btn-ghost" href="#/scan">Scanner</a>
             </nav>
             <div className="flex items-center gap-2">
               <ThemeToggle />
@@ -172,13 +178,38 @@ export function Nav({ variant, onLaunch }: { variant: 'landing' | 'app'; onLaunc
             </div>
           </>
         ) : (
-          <div className="flex items-center gap-2">
-            <NetworkBadge />
-            <ThemeToggle />
-            <WalletButton />
-          </div>
+          <>
+            <nav className="hidden items-center gap-1 text-sm sm:flex" aria-label="Pages">
+              {PAGE_LINKS.map((l) => (
+                <a key={l.href} className={`btn-ghost ${variant === l.variant ? 'text-fg underline decoration-accent decoration-2 underline-offset-8' : ''}`} href={l.href} aria-current={variant === l.variant ? 'page' : undefined}>
+                  {l.label}
+                </a>
+              ))}
+            </nav>
+            <div className="flex items-center gap-2">
+              <NetworkBadge />
+              <ThemeToggle />
+              {variant === 'app' && <WalletButton />}
+            </div>
+          </>
         )}
       </div>
+      {variant !== 'landing' && (
+        <nav className="border-t border-border sm:hidden" aria-label="Pages">
+          <div className="mx-auto grid max-w-6xl grid-cols-2 px-4">
+            {PAGE_LINKS.map((l) => (
+              <a
+                key={l.href}
+                href={l.href}
+                aria-current={variant === l.variant ? 'page' : undefined}
+                className={`flex min-h-11 items-center justify-center font-display text-sm font-bold uppercase tracking-wide ${variant === l.variant ? 'text-fg shadow-[inset_0_-2px_0_rgb(var(--accent))]' : 'text-muted'}`}
+              >
+                {l.label}
+              </a>
+            ))}
+          </div>
+        </nav>
+      )}
     </header>
   );
 }
