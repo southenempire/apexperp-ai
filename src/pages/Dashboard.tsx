@@ -132,9 +132,9 @@ function HealthCard({ account, t }: { account: AccountQuery; t: Thresholds }) {
       ) : (
         <div className="p-4 sm:p-5">
           <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-2">
-            <p className={`num text-7xl font-semibold leading-none ${style.text}`}>
-              {d.ratio === null ? '—' : d.ratio.toFixed(2)}
-              {d.ratio !== null && <span className="text-3xl text-muted">x</span>}
+            <p className={`num text-7xl font-semibold leading-none ${style.text}`} title={d.ratio !== null && d.ratio >= 100 ? `${d.ratio.toFixed(0)}x, far above every line` : undefined}>
+              {d.ratio === null ? '—' : d.ratio >= 100 ? '100' : d.ratio.toFixed(2)}
+              {d.ratio !== null && <span className="text-3xl text-muted">{d.ratio >= 100 ? 'x+' : 'x'}</span>}
             </p>
             <p className="max-w-xs pb-1 text-sm text-fg/80">{ZONE_SENTENCE[zone]}</p>
           </div>
@@ -392,7 +392,15 @@ function PositionsCard({ address, account, t, canTrade }: { address: Address; ac
                   ].map(([label, v, tone], i) => (
                     <div key={label as string} className={`px-2 py-1.5 ${i ? 'border-l border-border' : ''}`}>
                       <dt className="whitespace-nowrap text-muted">{label as string}</dt>
-                      <dd className={`mt-0.5 font-semibold ${tone}`}>{v === null ? '—' : fmtPrice(v as number)}</dd>
+                      <dd className={`mt-0.5 font-semibold ${tone}`}>
+                        {v === null ? (
+                          <span className="font-normal text-muted" title="Your equity covers this whole position, so this market alone can't reach this line">
+                            none
+                          </span>
+                        ) : (
+                          fmtPrice(v as number)
+                        )}
+                      </dd>
                     </div>
                   ))}
                 </dl>
@@ -416,6 +424,9 @@ function PositionsCard({ address, account, t, canTrade }: { address: Address; ac
                     {busy === `${p.perp.pool}:100` ? 'Sending' : 'Close'}
                   </button>
                 </div>
+                {p.trimAt === null && p.flattenAt === null && p.liquidationAt === null && (
+                  <p className="text-xs text-muted sm:col-span-2">Your equity covers this whole position, so this market alone can't trim, close or liquidate it.</p>
+                )}
                 <StopsStrip
                   p={p}
                   live={stops.data?.filter((s) => s.pool === p.perp.pool) ?? null}
@@ -579,7 +590,14 @@ function ActivityCard({ address }: { address: Address }) {
                 </p>
                 <p className="num truncate text-xs text-muted">
                   {timeAgo(f.timestamp)}
-                  {f.txHash && ` · ${shortHash(f.txHash)}`}
+                  {f.txHash && (
+                    <>
+                      {' · '}
+                      <a href={explorerTx(f.txHash)} target="_blank" rel="noreferrer" className="underline underline-offset-4 hover:text-fg">
+                        {shortHash(f.txHash)}
+                      </a>
+                    </>
+                  )}
                 </p>
               </div>
               {f.txHash && <CopyButton text={f.txHash} label="Copy transaction hash" />}
