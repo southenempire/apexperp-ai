@@ -3,6 +3,9 @@ import { ShieldCheck, ShieldOff, Wallet } from 'lucide-react';
 import { getAddress, isAddress, type Address } from 'viem';
 import { HealthMeter, ZONE_STYLE, zoneOf } from '../components/HealthMeter';
 import { CopyButton, ErrorNote, ExternalA, PanelHead, Skeleton, useToast } from '../components/ui';
+import { proofToMarkdown, recordDappProof, useProofLog } from '../lib/proofLog';
+import { explorerTx } from '../../agent/explorer';
+import { formatUnits } from 'viem';
 import { useAccount, useFills, useMarkets, useStops, type PositionView } from '../lib/hooks';
 import { armProtection, cancelStops, isProtective, planProtection, stopContext, type LiveStop } from '../../agent/protection';
 import { useWallet } from '../lib/wallet';
@@ -232,11 +235,24 @@ function PositionsCard({ address, account, t, canTrade }: { address: Address; ac
       if (!plan.ok) throw new Error(`Can't place this order: ${plan.reason}.`);
       const res = await exchange.trader.placePerpOrder({ pool: p.perp.pool, isBid: plan.isBid, price: plan.price, quantity: plan.quantity, orderType: ORDER_TYPE_MARKET });
       const ok = res.receipt.status === 'success';
+      recordDappProof({
+        timestamp: new Date().toISOString(),
+        kind: pct === 100 ? 'DAPP_CLOSE' : 'DAPP_TRIM',
+        account: address,
+        market: p.perp.name,
+        side: plan.isBid ? 'buy' : 'sell',
+        quantity: formatUnits(plan.quantity, p.perp.baseDecimals),
+        limitPrice: formatUnits(plan.price, p.perp.quoteDecimals),
+        txHash: res.hash,
+        block: res.receipt.blockNumber.toString(),
+        status: res.receipt.status,
+        healthBefore: account.data?.ratio ?? undefined,
+      });
       toast.update(id, {
         tone: ok ? 'success' : 'error',
         title: ok ? (res.fills.length ? `Done. ${p.perp.name} ${pct === 100 ? 'closed' : 'trimmed'}.` : 'Sent, but nothing filled. The book may be thin.') : 'The transaction reverted.',
         detail: res.hash,
-        copy: res.hash,
+        copy: res.hash, href: explorerTx(res.hash),
       });
       account.retry();
     } catch (err: any) {
@@ -261,13 +277,28 @@ function PositionsCard({ address, account, t, canTrade }: { address: Address; ac
       if (plan.legs.length === 0) throw new Error(plan.skipped.join(' ') || 'Nothing to arm.');
       const ctx = await stopContext(exchange, p.perp);
       const results = await armProtection(exchange, p.perp, plan, ctx);
+      for (const r of results) {
+        recordDappProof({
+          timestamp: new Date().toISOString(),
+          kind: r.leg.kind === 'trim' ? 'ARM_TRIM_STOP' : 'ARM_CLOSE_STOP',
+          account: address,
+          market: p.perp.name,
+          side: r.leg.isBid ? 'buy' : 'sell',
+          quantity: r.leg.quantity === 0n ? 'whole position' : formatUnits(r.leg.quantity, p.perp.baseDecimals),
+          limitPrice: `trigger ${formatUnits(r.leg.triggerPrice, p.perp.quoteDecimals)}`,
+          txHash: r.hash,
+          block: r.block.toString(),
+          status: r.status,
+          healthBefore: account.data?.ratio ?? undefined,
+        });
+      }
       const last = results[results.length - 1];
       const ok = results.every((r) => r.status === 'success');
       toast.update(id, {
         tone: ok ? 'success' : 'error',
         title: ok ? `${p.perp.name} is protected on-chain. ${results.length} stop${results.length > 1 ? 's' : ''} armed.` : 'A stop transaction reverted.',
         detail: last.hash,
-        copy: last.hash,
+        copy: last.hash, href: explorerTx(last.hash),
       });
       stops.retry();
     } catch (err) {
@@ -282,7 +313,19 @@ function PositionsCard({ address, account, t, canTrade }: { address: Address; ac
     const id = toast.push({ tone: 'pending', title: `Removing stops on ${p.perp.name}`, detail: 'Confirm it in your wallet. The fees come back to you.' });
     try {
       const res = await cancelStops(exchange, mine[0].registry, mine.map((s) => s.orderId));
-      toast.update(id, { tone: res.status === 'success' ? 'success' : 'error', title: res.status === 'success' ? 'Stops removed.' : 'The transaction reverted.', detail: res.hash, copy: res.hash });
+      recordDappProof({
+        timestamp: new Date().toISOString(),
+        kind: 'CANCEL_STOPS',
+        account: address,
+        market: p.perp.name,
+        side: 'sell',
+        quantity: `${mine.length} stop(s)`,
+        limitPrice: '',
+        txHash: res.hash,
+        block: res.block.toString(),
+        status: res.status,
+      });
+      toast.update(id, { tone: res.status === 'success' ? 'success' : 'error', title: res.status === 'success' ? 'Stops removed.' : 'The transaction reverted.', detail: res.hash, copy: res.hash, href: explorerTx(res.hash) });
       stops.retry();
     } catch (err) {
       toast.update(id, { tone: 'error', title: "Couldn't remove the stops", detail: errorText(err) });
@@ -458,6 +501,55 @@ function SentinelCard({ address, t, setT }: { address: Address; t: Thresholds; s
 
 /* ---------- Activity ---------- */
 
+function ProofCard({ address }: { address: Address }) {
+  const { rows, clear } = useProofLog(address);
+  const [copied, setCopied] = useState(false);
+  if (rows.length === 0) return null;
+  const markdown = proofToMarkdown(rows);
+  return (
+    <section className="card" aria-labelledby="proof-title">
+      <PanelHead id="proof-title" label="Sent from here">
+        <button type="button" className="btn-ghost min-h-9 px-2 text-xs" onClick={clear}>
+          Clear
+        </button>
+      </PanelHead>
+      <ul>
+        {rows
+          .slice(-6)
+          .reverse()
+          .map((r) => (
+            <li key={r.txHash} className="flex items-center gap-3 border-b border-border py-2 pl-4 pr-1 last:border-b-0 sm:pl-5">
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm">
+                  {r.kind.replace(/_/g, ' ').toLowerCase()} · {r.market}
+                </p>
+                <a href={explorerTx(r.txHash)} target="_blank" rel="noreferrer" className="num block truncate text-xs text-muted underline underline-offset-4 hover:text-fg">
+                  {shortHash(r.txHash)}
+                </a>
+              </div>
+              <CopyButton text={r.txHash} label="Copy transaction hash" />
+            </li>
+          ))}
+      </ul>
+      <div className="flex items-center justify-between gap-3 border-t border-border px-4 py-3 sm:px-5">
+        <p className="text-xs text-muted">Paste these rows into PROOF.md in the repo.</p>
+        <button
+          type="button"
+          className="btn-secondary min-h-9 shrink-0 px-3 text-xs"
+          onClick={() =>
+            navigator.clipboard?.writeText(markdown).then(() => {
+              setCopied(true);
+              setTimeout(() => setCopied(false), 1500);
+            })
+          }
+        >
+          {copied ? 'Copied' : 'Copy as Markdown'}
+        </button>
+      </div>
+    </section>
+  );
+}
+
 function ActivityCard({ address }: { address: Address }) {
   const fills = useFills(address);
   return (
@@ -562,7 +654,13 @@ export function Dashboard({ watched, onWatch }: { watched: Address | null; onWat
 
   return (
     <main className="mx-auto max-w-6xl px-4 py-6 sm:py-8">
-      {!address ? (
+      {!address && wallet.resolving ? (
+        <div className="mx-auto max-w-lg space-y-3 py-16" aria-busy="true">
+          <p className="font-display text-2xl font-bold uppercase">Finding your account</p>
+          <p className="text-sm text-muted">Checking whether this wallet owns a Somnia Account on dreamDEX.</p>
+          <Skeleton className="h-12 w-full" />
+        </div>
+      ) : !address ? (
         <div className="space-y-4">
           <ConnectPrompt onWatch={onWatch} />
           <MarketsCard />
@@ -571,7 +669,7 @@ export function Dashboard({ watched, onWatch }: { watched: Address | null; onWat
         <>
           <div className="mb-4 flex flex-col justify-between gap-4 border-b border-border pb-4 sm:flex-row sm:items-end">
             <div>
-              <p className="label">{isOwn ? 'Your account' : 'Looking at'}</p>
+              <p className="label">{isOwn ? (wallet.viaSmartAccount ? 'Your Somnia Account' : 'Your account') : 'Looking at'}</p>
               <div className="mt-1 flex items-center gap-1">
                 <h1 className="num text-2xl font-semibold">{shortAddress(address)}</h1>
                 <CopyButton text={address} label="Copy address" />
@@ -594,6 +692,7 @@ export function Dashboard({ watched, onWatch }: { watched: Address | null; onWat
             </div>
             <div className="space-y-4">
               <SentinelCard address={address} t={t} setT={setT} />
+              {isOwn && <ProofCard address={address} />}
               <ActivityCard address={address} />
             </div>
           </div>

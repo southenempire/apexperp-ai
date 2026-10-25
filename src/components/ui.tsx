@@ -100,6 +100,8 @@ interface Toast {
   title: string;
   detail?: string;
   copy?: string;
+  /** Explorer page for the transaction, shown as a link. */
+  href?: string;
 }
 
 const ToastContext = createContext<{ push: (t: Omit<Toast, 'id'>) => number; update: (id: number, t: Omit<Toast, 'id'>) => void } | null>(null);
@@ -132,6 +134,11 @@ export function ToastProvider({ children }: { children: ReactNode }) {
             <div className="min-w-0 flex-1">
               <p className="text-sm font-semibold">{t.title}</p>
               {t.detail && <p className="num mt-0.5 break-all text-xs text-muted">{t.detail}</p>}
+              {t.href && (
+                <a href={t.href} target="_blank" rel="noreferrer" className="mt-1 inline-flex min-h-8 items-center gap-1 text-xs text-accent-ink underline underline-offset-4 hover:no-underline">
+                  View on explorer <ExternalLink className="h-3 w-3" aria-hidden="true" />
+                </a>
+              )}
             </div>
             {t.copy && <CopyButton text={t.copy} label="Copy transaction hash" />}
             <button type="button" aria-label="Dismiss" className="flex h-10 w-10 shrink-0 items-center justify-center text-muted hover:text-fg" onClick={() => dismiss(t.id)}>

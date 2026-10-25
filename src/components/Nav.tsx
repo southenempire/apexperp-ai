@@ -58,7 +58,7 @@ export function NetworkBadge() {
 }
 
 export function WalletButton({ onConnected }: { onConnected?: () => void }) {
-  const { address, connect, connecting, disconnect, onRightChain, switchChain, error } = useWallet();
+  const { address, owner, viaSmartAccount, resolving, connect, connecting, disconnect, onRightChain, switchChain, error } = useWallet();
   const [open, setOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -73,6 +73,14 @@ export function WalletButton({ onConnected }: { onConnected?: () => void }) {
       document.removeEventListener('mousedown', onClick);
     };
   }, [open]);
+
+  if (resolving) {
+    return (
+      <button type="button" className="btn-secondary" disabled>
+        Finding your account
+      </button>
+    );
+  }
 
   if (!address) {
     return (
@@ -112,10 +120,18 @@ export function WalletButton({ onConnected }: { onConnected?: () => void }) {
       </button>
       {open && (
         <div role="menu" className="absolute right-0 z-40 mt-2 w-64 border border-border bg-surface-2 p-2">
-          <div className="flex items-center justify-between gap-2 px-2 py-1">
+          <div className="px-2 pt-1">
+            <p className="label">{viaSmartAccount ? 'Somnia Account' : 'Wallet'}</p>
+          </div>
+          <div className="flex items-center justify-between gap-2 px-2">
             <span className="num truncate text-sm">{shortAddress(address)}</span>
             <CopyButton text={address} label="Copy address" />
           </div>
+          {viaSmartAccount && owner && (
+            <p className="px-2 pb-2 text-xs text-muted">
+              Signing with <span className="num">{shortAddress(owner)}</span>
+            </p>
+          )}
           <button
             type="button"
             role="menuitem"
