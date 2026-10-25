@@ -268,3 +268,33 @@ export function useFills(address: Address | null) {
 export function useStops(address: Address | null) {
   return usePoll<LiveStop[]>(address ? async () => listLiveStops(exchange, address, await getPerps()) : null, 10_000, [address]);
 }
+
+export interface NetworkProtection {
+  stops: number;
+  traders: number;
+  /** Notional of fixed-size stops at current marks; whole-position stops are not counted. */
+  coveredUsd: number;
+}
+
+/** Reduce-only stops pending across every dreamDEX perp market, refreshed every 30s. */
+export function useNetworkProtection() {
+  return usePoll<NetworkProtection>(async () => {
+    const markets: PerpMarket[] = (await exchange.client.listPerpMarkets()).filter((m) => m.marginBank.toLowerCase() === MARGIN_BANK.toLowerCase());
+    const rows = await Promise.all(
+      markets.map(async (m) => ({ m, stops: await exchange.client.listPerpStopOrders({ pool: m.poolAddress, status: ['PENDING'], limit: 1000 }) })),
+    );
+    const traders = new Set<string>();
+    let stops = 0;
+    let coveredUsd = 0;
+    for (const { m, stops: list } of rows) {
+      const mark = m.markPrice ? toNumber(BigInt(m.markPrice), m.quoteDecimals) : 0;
+      for (const s of list) {
+        if (s.intent === 'opening') continue;
+        stops++;
+        traders.add(s.owner.toLowerCase());
+        coveredUsd += toNumber(BigInt(s.quantity), m.baseDecimals) * mark;
+      }
+    }
+    return { stops, traders: traders.size, coveredUsd };
+  }, 30_000, []);
+}

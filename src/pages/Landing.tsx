@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { ArrowRight, Wallet } from 'lucide-react';
 import { HealthMeter, ZONE_STYLE, zoneOf } from '../components/HealthMeter';
 import { ExternalA, Logo, Skeleton } from '../components/ui';
-import { useBlockNumber, useMarkets } from '../lib/hooks';
+import { useBlockNumber, useMarkets, useNetworkProtection } from '../lib/hooks';
 import { useWallet } from '../lib/wallet';
 import { fmtUsd } from '../lib/format';
 import { DEFAULT_THRESHOLDS, DREAMDEX_URL, PROOF_URL, REPO_URL } from '../lib/somnia';
@@ -130,12 +130,13 @@ function BreakerDemo() {
 function LiveStats() {
   const block = useBlockNumber();
   const markets = useMarkets();
+  const guard = useNetworkProtection();
   const oi = markets.data?.reduce((sum, m) => sum + (m.openInterestUsd ?? 0), 0);
   const stats = [
     { label: 'Latest block', value: block.data !== null ? `#${block.data.toLocaleString()}` : null },
     { label: 'Markets covered', value: markets.data ? String(markets.data.length) : null },
     { label: 'Open interest', value: oi !== undefined ? `$${(oi / 1e6).toFixed(1)}M` : null },
-    { label: 'Block time', value: '10 ms' },
+    { label: 'Stops guarding positions', value: guard.data ? guard.data.stops.toLocaleString() : null, sub: guard.data ? `${guard.data.traders.toLocaleString()} traders · $${(guard.data.coveredUsd / 1e6).toFixed(1)}M+ covered` : null },
   ];
   return (
     <dl className="grid grid-cols-2 border-y border-border md:grid-cols-4">
@@ -143,6 +144,7 @@ function LiveStats() {
         <div key={s.label} className={`px-4 py-5 sm:px-6 ${i % 2 ? 'border-l' : ''} ${i > 1 ? 'border-t md:border-t-0' : ''} ${i === 2 ? 'md:border-l' : ''} border-border`}>
           <dt className="label">{s.label}</dt>
           <dd className="num mt-2 text-2xl font-semibold">{s.value ?? <Skeleton className="h-8 w-28" />}</dd>
+          {'sub' in s && s.sub && <dd className="mt-1 text-xs text-muted">{s.sub}</dd>}
         </div>
       ))}
     </dl>
