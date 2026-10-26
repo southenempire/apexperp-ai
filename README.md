@@ -8,7 +8,7 @@
 <p align="center"><b>Get trimmed, not liquidated.</b><br>A liquidation guard for dreamDEX perps on Somnia.</p>
 
 <p align="center">
-  <a href="LIVE_APP_URL">Live app</a> ·
+  <a href="https://southenempire.github.io/apexperp-ai/">Live app</a> ·
   <a href="DEMO_VIDEO_URL">Demo video</a> ·
   <a href="PROOF.md">On-chain proof</a> ·
   <a href="feedback/">SDK feedback</a>
