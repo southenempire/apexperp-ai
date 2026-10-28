@@ -8,9 +8,11 @@
 
 import { erc20Abi, formatEther, formatUnits, isAddress, type Address } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
-import { SOMNIA_HIDEKI_TESTNET_ADDRESSES } from '@somnia-chain/markets-sdk';
 import { createLinkedKey, linkCoverage } from '../agent/linked';
 import { connect, loadPerps, MARGIN_BANK, publicClient } from '../agent/markets';
+
+// USDso on Hideki (18 decimals, settles the perps). The SDK's `collateral` constant is tUSDC, the binary-market token, not this.
+const HIDEKI_USDSO: Address = '0xed7993A74dAe1e6656B704A424DcD8711aAf4F72';
 
 const results: { name: string; ok: boolean; detail: string }[] = [];
 
@@ -85,7 +87,7 @@ async function main() {
     } else {
       await check('Wallet USDso', async () => {
         const bal = await publicClient.readContract({
-          address: SOMNIA_HIDEKI_TESTNET_ADDRESSES.collateral as Address,
+          address: HIDEKI_USDSO,
           abi: erc20Abi,
           functionName: 'balanceOf',
           args: [signer],
