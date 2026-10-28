@@ -133,9 +133,7 @@ npm run feedback:repro
 
 ## X posts
 
-- POST_1_URL
-- POST_2_URL
-- POST_3_URL
+- [Launch thread on X](https://x.com/Southen13/status/2114959892414869592)
 
 ## Network
 
