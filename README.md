@@ -112,7 +112,7 @@ Tests: `npm test` runs two suites. `test:sentinel` covers the health maths, deci
 
 ## Feedback track
 
-Ten reproducible reports in [`feedback/`](feedback/), one per file in the bounty template. Reproduce all of them, read-only, with:
+Twelve reproducible reports in [`feedback/`](feedback/), one per file in the bounty template. Reports 01 to 10 reproduce, read-only, with the command below; 11 and 12 are explorer pages and their steps are in the files:
 
 ```bash
 npm run feedback:repro
@@ -130,10 +130,13 @@ npm run feedback:repro
 | 08 | normal | Docs say paper USDso can't open six markets; the SDK reads and a simulated order allow them |
 | 09 | normal | The chain definition says Hideki has 10 ms blocks (~100/s); the chain makes about 10 blocks a second |
 | 10 | normal | `eth_getLogs` rejects ranges over 1,000 blocks (about 100 s), with a non-standard error and no mention in the docs |
+| 11 | normal | New explorer: "Open in Markets" on a Tokyo testnet trade goes to a 404, and the working Markets URL carries no chain |
+| 12 | normal | New explorer: a Tokyo testnet perp trade is labelled with the pool address, not the market, and has no side or account |
 
 ## X posts
 
 - [Launch thread on X](https://x.com/Southen13/status/2114959892414869592)
+- [The setup scanner and its edge check](https://x.com/Southen13/status/2115351335390351783)
 
 ## Network
 
