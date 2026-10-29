@@ -226,6 +226,7 @@ function StopsStrip({
   p,
   live,
   canTrade,
+  linesValid,
   busy,
   onProtect,
   onRemove,
@@ -233,6 +234,7 @@ function StopsStrip({
   p: PositionView;
   live: LiveStop[] | null;
   canTrade: boolean;
+  linesValid: boolean;
   busy: string | null;
   onProtect: () => void;
   onRemove: (mine: LiveStop[]) => void;
@@ -274,7 +276,7 @@ function StopsStrip({
             {busy === `${p.perp.pool}:unprotect` ? 'Removing' : 'Remove stops'}
           </button>
         ) : (
-          <button type="button" className="btn-primary shrink-0" disabled={!canTrade || busy !== null || !p.perp.stopRegistry} onClick={onProtect}>
+          <button type="button" className="btn-primary shrink-0" disabled={!canTrade || !linesValid || busy !== null || !p.perp.stopRegistry} onClick={onProtect}>
             <ShieldCheck className="h-4 w-4" aria-hidden="true" />
             {busy === `${p.perp.pool}:protect` ? 'Arming' : 'Protect on-chain'}
           </button>
@@ -493,6 +495,7 @@ function PositionsCard({ address, account, t, canTrade }: { address: Address; ac
                   p={p}
                   live={stops.data?.filter((s) => s.pool === p.perp.pool) ?? null}
                   canTrade={canTrade}
+                  linesValid={t.flattenBelowHealth < t.reduceBelowHealth}
                   busy={busy}
                   onProtect={() => protect(p)}
                   onRemove={(mine) => unprotect(p, mine)}

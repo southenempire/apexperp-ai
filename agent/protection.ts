@@ -58,6 +58,11 @@ export function planProtection(p: {
   mmBps: bigint;
   thresholds: Thresholds;
 }): ProtectionPlan {
+  // With the close line at or above the trim line the close stop fires first (or is skipped as
+  // already past while the trim stop is armed), so refuse rather than arm a broken pair.
+  if (p.thresholds.flattenBelowHealth >= p.thresholds.reduceBelowHealth) {
+    return { legs: [], skipped: ['the close line has to sit below the trim line'] };
+  }
   const long = p.size > 0n;
   const oneBase = 10n ** BigInt(p.perp.baseDecimals);
   const tick = p.perp.tickSize;
