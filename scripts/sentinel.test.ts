@@ -98,6 +98,14 @@ test('a leg already past its line is skipped, not armed to fire instantly', () =
   assert.match(plan.skipped[0], /already past the trim line/);
 });
 
+test('a close line at or above the trim line arms nothing', () => {
+  for (const flattenBelowHealth of [1.5, 2]) {
+    const plan = planProtection({ ...longBase, thresholds: { ...t, flattenBelowHealth } });
+    assert.deepEqual(plan.legs, []);
+    assert.match(plan.skipped[0], /close line has to sit below the trim line/);
+  }
+});
+
 import { isProtective } from '../agent/protection';
 
 test('only loss-side stops count as protection; take-profits are left alone', () => {
