@@ -137,6 +137,7 @@ npm run feedback:repro
 
 - [Launch thread on X](https://x.com/Southen13/status/2114959892414869592)
 - [The setup scanner and its edge check](https://x.com/Southen13/status/2115351335390351783)
+- [Demo video clip](https://x.com/Southen13/status/2116275144272367691)
 
 ## Network
 
