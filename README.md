@@ -9,7 +9,7 @@
 
 <p align="center">
   <a href="https://southenempire.github.io/apexperp-ai/">Live app</a> ·
-  <a href="DEMO_VIDEO_URL">Demo video</a> ·
+  <a href="https://youtu.be/WgbSrbndSgo">Demo video</a> ·
   <a href="PROOF.md">On-chain proof</a> ·
   <a href="feedback/">SDK feedback</a>
 </p>
